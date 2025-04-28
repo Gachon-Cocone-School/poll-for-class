@@ -7,22 +7,22 @@ import Layout from "~/components/Layout";
 import { api } from "~/trpc/react";
 import { PlusIcon, PencilIcon, TrashIcon } from "@heroicons/react/24/outline";
 
-export default function PollsPage() {
+export default function GroupsPage() {
   const router = useRouter();
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const {
-    data: polls,
+    data: groups,
     isLoading,
     refetch,
-  } = api.poll.getAll.useQuery(undefined, {
+  } = api.group.getAll.useQuery(undefined, {
     // Refetch data when component mounts
     refetchOnMount: true,
     // Poll every 5 seconds to keep data fresh
     refetchInterval: 5000,
   });
 
-  const deleteMutation = api.poll.delete.useMutation({
+  const deleteMutation = api.group.delete.useMutation({
     onSuccess: () => {
       // Immediately refetch data after deletion
       refetch();
@@ -30,7 +30,7 @@ export default function PollsPage() {
   });
 
   const handleDelete = async (id: string) => {
-    if (confirm("Are you sure you want to delete this poll?")) {
+    if (confirm("Are you sure you want to delete this group?")) {
       setDeleteId(id);
       await deleteMutation.mutateAsync({ id });
       setDeleteId(null);
@@ -40,20 +40,20 @@ export default function PollsPage() {
   return (
     <Layout>
       <div className="mb-8 flex justify-between">
-        <h1 className="text-3xl font-bold">Polls</h1>
+        <h1 className="text-3xl font-bold">Groups</h1>
         <div className="flex space-x-2">
           <Link
-            href="/groups"
+            href="/"
             className="flex items-center rounded-md bg-gray-600 px-4 py-2 text-white hover:bg-gray-700"
           >
-            Groups
+            Polls
           </Link>
           <Link
-            href="/polls/create"
+            href="/groups/create"
             className="flex items-center rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
           >
             <PlusIcon className="mr-2 h-5 w-5" />
-            Add Poll
+            Add Group
           </Link>
         </div>
       </div>
@@ -62,7 +62,7 @@ export default function PollsPage() {
         <div className="flex justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-gray-900"></div>
         </div>
-      ) : polls && polls.length > 0 ? (
+      ) : groups && groups.length > 0 ? (
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -81,12 +81,6 @@ export default function PollsPage() {
                 </th>
                 <th
                   scope="col"
-                  className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
-                >
-                  Group
-                </th>
-                <th
-                  scope="col"
                   className="px-6 py-3 text-xs font-medium tracking-wider text-gray-500 uppercase"
                 >
                   Actions
@@ -94,42 +88,37 @@ export default function PollsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white">
-              {polls.map((poll) => (
-                <tr key={poll.id} className="hover:bg-gray-50">
+              {groups.map((group) => (
+                <tr key={group.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
-                      {poll.poll_name}
+                      {group.group_name}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-500">
-                      {poll.poll_description}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-500">
-                      {poll.poll_group.id}
+                      {group.group_description}
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right text-sm font-medium whitespace-nowrap">
                     <div className="flex justify-end space-x-2">
                       <button
-                        onClick={() => router.push(`/polls/edit/${poll.id}`)}
+                        onClick={() => router.push(`/groups/edit/${group.id}`)}
                         className="rounded bg-yellow-100 p-1 text-yellow-600 hover:bg-yellow-200"
-                        disabled={deleteId === poll.id}
+                        disabled={deleteId === group.id}
                       >
                         <PencilIcon className="h-5 w-5" />
                       </button>
                       <button
-                        onClick={() => handleDelete(poll.id!)}
+                        onClick={() => handleDelete(group.id!)}
                         className={`rounded p-1 ${
-                          deleteId === poll.id
+                          deleteId === group.id
                             ? "bg-gray-100 text-gray-400"
                             : "bg-red-100 text-red-600 hover:bg-red-200"
                         }`}
-                        disabled={deleteId === poll.id}
+                        disabled={deleteId === group.id}
                       >
-                        {deleteId === poll.id ? (
+                        {deleteId === group.id ? (
                           <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-red-600"></div>
                         ) : (
                           <TrashIcon className="h-5 w-5" />
@@ -146,7 +135,7 @@ export default function PollsPage() {
         <div className="rounded-md bg-yellow-50 p-4">
           <div className="flex">
             <div className="text-sm text-yellow-700">
-              No polls found. Click the &quot;Add Poll&quot; button to create
+              No groups found. Click the &quot;Add Group&quot; button to create
               one.
             </div>
           </div>

@@ -1,0 +1,213 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Layout from "~/components/Layout";
+import { api } from "~/trpc/react";
+import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
+
+export default function CreateGroupPage() {
+  const router = useRouter();
+  const [formData, setFormData] = useState({
+    group_name: "",
+    group_description: "",
+  });
+  const [members, setMembers] = useState([{ member_name: "", member_no: "" }]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const createGroup = api.group.create.useMutation();
+  const addMember = api.group.addMember.useMutation();
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleMemberChange = (
+    index: number,
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const { name, value } = e.target;
+    const updatedMembers = [...members];
+    updatedMembers[index] = { ...updatedMembers[index], [name]: value };
+    setMembers(updatedMembers);
+  };
+
+  const addMemberField = () => {
+    setMembers([...members, { member_name: "", member_no: "" }]);
+  };
+
+  const removeMemberField = (index: number) => {
+    const filteredMembers = members.filter((_, i) => i !== index);
+    setMembers(
+      filteredMembers.length
+        ? filteredMembers
+        : [{ member_name: "", member_no: "" }],
+    );
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      // Create group first
+      const { id } = await createGroup.mutateAsync(formData);
+
+      // Then add members to the group
+      const validMembers = members.filter(
+        (m) => m.member_name.trim() !== "" && m.member_no.trim() !== "",
+      );
+      for (const member of validMembers) {
+        await addMember.mutateAsync({
+          groupId: id,
+          member: member,
+        });
+      }
+
+      router.push("/groups");
+    } catch (error) {
+      console.error("Error creating group:", error);
+      alert("Failed to create group. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Layout>
+      <div className="mb-8 flex items-center justify-between">
+        <h1 className="text-3xl font-bold">Create Group</h1>
+        <button
+          onClick={() => router.back()}
+          className="rounded-md bg-gray-200 px-4 py-2 text-gray-700 hover:bg-gray-300"
+        >
+          Back
+        </button>
+      </div>
+
+      <div className="rounded-md bg-white p-6 shadow-md">
+        <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <label
+              htmlFor="group_name"
+              className="mb-2 block font-medium text-gray-700"
+            >
+              Group Name
+            </label>
+            <input
+              type="text"
+              id="group_name"
+              name="group_name"
+              value={formData.group_name}
+              onChange={handleChange}
+              className="w-full rounded-md border border-gray-300 p-2 focus:border-blue-500 focus:outline-none"
+              required
+            />
+          </div>
+
+          <div className="mb-6">
+            <label
+              htmlFor="group_description"
+              className="mb-2 block font-medium text-gray-700"
+            >
+              Description
+            </label>
+            <textarea
+              id="group_description"
+              name="group_description"
+              value={formData.group_description}
+              onChange={handleChange}
+              className="w-full rounded-md border border-gray-300 p-2 focus:border-blue-500 focus:outline-none"
+              rows={3}
+            />
+          </div>
+
+          <div className="mb-6">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="font-medium text-gray-700">Members</h3>
+              <button
+                type="button"
+                onClick={addMemberField}
+                className="flex items-center rounded bg-green-100 px-3 py-1 text-sm text-green-700 hover:bg-green-200"
+              >
+                <PlusIcon className="mr-1 h-4 w-4" />
+                Add Member
+              </button>
+            </div>
+
+            {members.map((member, index) => (
+              <div
+                key={index}
+                className="mb-4 rounded-md border border-gray-200 p-4"
+              >
+                <div className="flex justify-between">
+                  <h4 className="mb-2 text-sm font-medium text-gray-500">
+                    Member #{index + 1}
+                  </h4>
+                  {members.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeMemberField(index)}
+                      className="flex items-center rounded bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200"
+                    >
+                      <TrashIcon className="mr-1 h-3 w-3" />
+                      Remove
+                    </button>
+                  )}
+                </div>
+
+                <div className="mb-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label
+                      htmlFor={`member_name_${index}`}
+                      className="mb-1 block text-sm font-medium text-gray-700"
+                    >
+                      Name
+                    </label>
+                    <input
+                      type="text"
+                      id={`member_name_${index}`}
+                      name="member_name"
+                      value={member.member_name}
+                      onChange={(e) => handleMemberChange(index, e)}
+                      className="w-full rounded-md border border-gray-300 p-2 text-sm focus:border-blue-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor={`member_no_${index}`}
+                      className="mb-1 block text-sm font-medium text-gray-700"
+                    >
+                      Member ID/Number
+                    </label>
+                    <input
+                      type="text"
+                      id={`member_no_${index}`}
+                      name="member_no"
+                      value={member.member_no}
+                      onChange={(e) => handleMemberChange(index, e)}
+                      className="w-full rounded-md border border-gray-300 p-2 text-sm focus:border-blue-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {isSubmitting ? "Creating..." : "Create Group"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </Layout>
+  );
+}

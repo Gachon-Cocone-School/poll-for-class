@@ -1,29 +1,90 @@
-# Create T3 App
+# Poll Application
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+A polling application built with Next.js, tRPC, and Firebase Firestore following the T3 stack.
 
-## What's next? How do I make an app with this?
+## Features
 
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
+- Create, read, update, and delete polls
+- Create, read, update, and delete groups
+- Link polls to groups
+- Navigate between polls and groups pages
 
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
+## Firebase Schema
 
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
+The application uses the following Firestore collections:
 
-## Learn More
+### Groups Collection
 
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
+- `group_name` (string)
+- `group_description` (string)
+- Sub-collection: `members`
+  - `member_name` (string)
+  - `member_no` (string)
 
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
+### Polls Collection
 
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
+- `poll_name` (string)
+- `poll_description` (string)
+- `poll_group` (reference to a group document)
+- Sub-collection: `questions`
+  - `question` (string)
+  - `choices` (string list)
 
-## How do I deploy this?
+## Getting Started
 
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+### Prerequisites
+
+- Node.js 18+ and npm
+- A Firebase project with Firestore enabled
+
+### Setup
+
+1. Clone this repository
+2. Install dependencies:
+   ```
+   npm install
+   ```
+3. Copy `.env.example` to `.env` and fill in your Firebase configuration:
+   ```
+   cp src/.env.example .env
+   ```
+4. Configure your Firebase project:
+   - Go to the [Firebase Console](https://console.firebase.google.com/)
+   - Create a new project (or use an existing one)
+   - Enable Firestore Database
+   - Go to Project Settings > General and copy the Firebase configuration values to your `.env` file
+
+### Development
+
+Run the development server:
+
+```
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
+
+### Build for Production
+
+```
+npm run build
+npm run start
+```
+
+## Project Structure
+
+The application follows the T3 stack structure:
+
+- `/src/app` - Next.js app router pages
+- `/src/components` - Reusable React components
+- `/src/lib` - Firebase configuration and service functions
+- `/src/server` - tRPC routers and procedures
+- `/src/styles` - Global CSS
+
+## Technologies Used
+
+- [Next.js](https://nextjs.org/) - React framework
+- [tRPC](https://trpc.io/) - End-to-end typesafe APIs
+- [Firebase](https://firebase.google.com/) - Backend and database
+- [TailwindCSS](https://tailwindcss.com/) - Styling
+- [TypeScript](https://www.typescriptlang.org/) - Type safety
