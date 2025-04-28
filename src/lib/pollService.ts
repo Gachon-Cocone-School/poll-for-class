@@ -10,10 +10,11 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { Poll, Question } from "./types";
+import { Poll, Question, Answer } from "./types";
 
 const POLLS_COLLECTION = "polls";
 const QUESTIONS_COLLECTION = "questions";
+const ANSWERS_COLLECTION = "answers";
 const GROUPS_COLLECTION = "groups";
 
 // Get all polls
@@ -203,4 +204,81 @@ export const getActiveQuestion = async (
 
   const data = pollDoc.data();
   return data.active_question || null;
+};
+
+// Get a question by ID
+export const getQuestionById = async (
+  pollId: string,
+  questionId: string,
+): Promise<Question | null> => {
+  const questionRef = doc(
+    db,
+    POLLS_COLLECTION,
+    pollId,
+    QUESTIONS_COLLECTION,
+    questionId,
+  );
+  const questionDoc = await getDoc(questionRef);
+
+  if (!questionDoc.exists()) return null;
+
+  return {
+    id: questionDoc.id,
+    ...(questionDoc.data() as Omit<Question, "id">),
+  };
+};
+
+// Submit an answer to a question
+export const submitAnswer = async (
+  pollId: string,
+  questionId: string,
+  answer: Omit<Answer, "id" | "created_at">,
+): Promise<string> => {
+  const answersCol = collection(
+    db,
+    POLLS_COLLECTION,
+    pollId,
+    QUESTIONS_COLLECTION,
+    questionId,
+    ANSWERS_COLLECTION,
+  );
+
+  const answerWithTimestamp = {
+    ...answer,
+    created_at: Date.now(),
+  };
+
+  const docRef = await addDoc(answersCol, answerWithTimestamp);
+  return docRef.id;
+};
+
+// Get member's answer to a question
+export const getMemberAnswer = async (
+  pollId: string,
+  questionId: string,
+  memberId: string,
+): Promise<Answer | null> => {
+  const answersCol = collection(
+    db,
+    POLLS_COLLECTION,
+    pollId,
+    QUESTIONS_COLLECTION,
+    questionId,
+    ANSWERS_COLLECTION,
+  );
+
+  const q = query(answersCol, where("member_id", "==", memberId));
+  const answerSnapshot = await getDocs(q);
+
+  if (answerSnapshot.empty) return null;
+
+  // Return the most recent answer if multiple exist
+  const answers = answerSnapshot.docs
+    .map((doc) => ({
+      id: doc.id,
+      ...(doc.data() as Omit<Answer, "id">),
+    }))
+    .sort((a, b) => b.created_at - a.created_at);
+
+  return answers[0];
 };

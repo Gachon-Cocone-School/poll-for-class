@@ -120,3 +120,26 @@ export const removeMemberFromGroup = async (
   );
   await deleteDoc(memberRef);
 };
+
+// Check if a member belongs to a group
+export const checkMemberInGroup = async (
+  groupId: string,
+  memberName: string,
+  memberNo: string,
+): Promise<boolean> => {
+  const membersCol = collection(
+    db,
+    GROUPS_COLLECTION,
+    groupId,
+    MEMBERS_COLLECTION,
+  );
+
+  const q = query(
+    membersCol,
+    where("member_name", "==", memberName),
+    where("member_no", "==", memberNo),
+  );
+
+  const memberSnapshot = await getDocs(q);
+  return !memberSnapshot.empty;
+};

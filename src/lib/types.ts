@@ -22,4 +22,13 @@ export interface Poll {
   poll_name: string;
   poll_description: string;
   poll_group: DocumentReference;
+  active_question?: string | null;
+}
+
+export interface Answer {
+  id?: string;
+  member_id: string;
+  member_name: string;
+  choice: string;
+  created_at: number;
 }
