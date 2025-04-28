@@ -141,16 +141,6 @@ export default function GroupsPage() {
           </div>
         </div>
       )}
-
-      {/* Refresh button for manual refresh */}
-      <div className="mt-4 flex justify-end">
-        <button
-          onClick={() => refetch()}
-          className="rounded border border-gray-300 px-3 py-1 text-sm text-gray-600 hover:bg-gray-100"
-        >
-          Refresh Data
-        </button>
-      </div>
     </Layout>
   );
 }

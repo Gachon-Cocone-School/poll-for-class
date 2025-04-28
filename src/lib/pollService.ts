@@ -14,19 +14,40 @@ import { Poll, Question } from "./types";
 
 const POLLS_COLLECTION = "polls";
 const QUESTIONS_COLLECTION = "questions";
+const GROUPS_COLLECTION = "groups";
 
 // Get all polls
 export const getPolls = async (): Promise<Poll[]> => {
   const pollsCol = collection(db, POLLS_COLLECTION);
   const pollSnapshot = await getDocs(pollsCol);
 
-  return pollSnapshot.docs.map((doc) => {
-    const data = doc.data() as Omit<Poll, "id">;
-    return {
-      id: doc.id,
-      ...data,
-    };
-  });
+  const polls = await Promise.all(
+    pollSnapshot.docs.map(async (doc) => {
+      const data = doc.data() as Omit<Poll, "id">;
+
+      // Fetch group data to get the group name
+      let groupData = { id: data.poll_group.id };
+      try {
+        const groupDoc = await getDoc(data.poll_group);
+        if (groupDoc.exists()) {
+          groupData = {
+            id: groupDoc.id,
+            ...groupDoc.data(),
+          };
+        }
+      } catch (error) {
+        console.error("Error fetching group data:", error);
+      }
+
+      return {
+        id: doc.id,
+        ...data,
+        poll_group: groupData,
+      };
+    }),
+  );
+
+  return polls;
 };
 
 // Get a single poll by ID
@@ -36,9 +57,26 @@ export const getPollById = async (id: string): Promise<Poll | null> => {
 
   if (!pollDoc.exists()) return null;
 
+  const data = pollDoc.data() as Omit<Poll, "id">;
+
+  // Fetch group data to get the group name
+  let groupData = { id: data.poll_group.id };
+  try {
+    const groupDoc = await getDoc(data.poll_group);
+    if (groupDoc.exists()) {
+      groupData = {
+        id: groupDoc.id,
+        ...groupDoc.data(),
+      };
+    }
+  } catch (error) {
+    console.error("Error fetching group data:", error);
+  }
+
   return {
     id: pollDoc.id,
-    ...(pollDoc.data() as Omit<Poll, "id">),
+    ...data,
+    poll_group: groupData,
   };
 };
 
@@ -57,8 +95,21 @@ export const updatePoll = async (
   await updateDoc(pollRef, poll);
 };
 
-// Delete a poll
+// Delete a poll and its subcollections (questions)
 export const deletePoll = async (id: string): Promise<void> => {
+  // First, delete all questions in the poll
+  const questionsCol = collection(db, POLLS_COLLECTION, id, QUESTIONS_COLLECTION);
+  const questionSnapshot = await getDocs(questionsCol);
+  
+  // Delete each question document
+  const deleteQuestionPromises = questionSnapshot.docs.map(async (doc) => {
+    await deleteDoc(doc.ref);
+  });
+  
+  // Wait for all questions to be deleted
+  await Promise.all(deleteQuestionPromises);
+  
+  // Then delete the poll document itself
   const pollRef = doc(db, POLLS_COLLECTION, id);
   await deleteDoc(pollRef);
 };

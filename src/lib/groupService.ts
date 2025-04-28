@@ -57,8 +57,21 @@ export const updateGroup = async (
   await updateDoc(groupRef, group);
 };
 
-// Delete a group
+// Delete a group and its subcollections (members)
 export const deleteGroup = async (id: string): Promise<void> => {
+  // First, delete all members in the group
+  const membersCol = collection(db, GROUPS_COLLECTION, id, MEMBERS_COLLECTION);
+  const memberSnapshot = await getDocs(membersCol);
+
+  // Delete each member document
+  const deleteMemberPromises = memberSnapshot.docs.map(async (doc) => {
+    await deleteDoc(doc.ref);
+  });
+
+  // Wait for all members to be deleted
+  await Promise.all(deleteMemberPromises);
+
+  // Then delete the group document itself
   const groupRef = doc(db, GROUPS_COLLECTION, id);
   await deleteDoc(groupRef);
 };

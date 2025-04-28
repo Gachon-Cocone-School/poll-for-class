@@ -108,7 +108,7 @@ export default function PollsPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-500">
-                      {poll.poll_group.id}
+                      {poll.poll_group.group_name || poll.poll_group.id}
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right text-sm font-medium whitespace-nowrap">
@@ -152,16 +152,6 @@ export default function PollsPage() {
           </div>
         </div>
       )}
-
-      {/* Refresh button for manual refresh */}
-      <div className="mt-4 flex justify-end">
-        <button
-          onClick={() => refetch()}
-          className="rounded border border-gray-300 px-3 py-1 text-sm text-gray-600 hover:bg-gray-100"
-        >
-          Refresh Data
-        </button>
-      </div>
     </Layout>
   );
 }
