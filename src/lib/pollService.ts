@@ -98,17 +98,22 @@ export const updatePoll = async (
 // Delete a poll and its subcollections (questions)
 export const deletePoll = async (id: string): Promise<void> => {
   // First, delete all questions in the poll
-  const questionsCol = collection(db, POLLS_COLLECTION, id, QUESTIONS_COLLECTION);
+  const questionsCol = collection(
+    db,
+    POLLS_COLLECTION,
+    id,
+    QUESTIONS_COLLECTION,
+  );
   const questionSnapshot = await getDocs(questionsCol);
-  
+
   // Delete each question document
   const deleteQuestionPromises = questionSnapshot.docs.map(async (doc) => {
     await deleteDoc(doc.ref);
   });
-  
+
   // Wait for all questions to be deleted
   await Promise.all(deleteQuestionPromises);
-  
+
   // Then delete the poll document itself
   const pollRef = doc(db, POLLS_COLLECTION, id);
   await deleteDoc(pollRef);
@@ -174,4 +179,28 @@ export const deleteQuestion = async (
     questionId,
   );
   await deleteDoc(questionRef);
+};
+
+// Update active question for a poll
+export const updateActiveQuestion = async (
+  pollId: string,
+  questionId: string | null,
+): Promise<void> => {
+  const pollRef = doc(db, POLLS_COLLECTION, pollId);
+  await updateDoc(pollRef, {
+    active_question: questionId,
+  });
+};
+
+// Get active question for a poll
+export const getActiveQuestion = async (
+  pollId: string,
+): Promise<string | null> => {
+  const pollRef = doc(db, POLLS_COLLECTION, pollId);
+  const pollDoc = await getDoc(pollRef);
+
+  if (!pollDoc.exists()) return null;
+
+  const data = pollDoc.data();
+  return data.active_question || null;
 };

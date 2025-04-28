@@ -5,7 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Layout from "~/components/Layout";
 import { api } from "~/trpc/react";
-import { PlusIcon, PencilIcon, TrashIcon } from "@heroicons/react/24/outline";
+import {
+  PlusIcon,
+  PencilIcon,
+  TrashIcon,
+  PlayIcon,
+} from "@heroicons/react/24/outline";
 
 export default function PollsPage() {
   const router = useRouter();
@@ -113,6 +118,14 @@ export default function PollsPage() {
                   </td>
                   <td className="px-6 py-4 text-right text-sm font-medium whitespace-nowrap">
                     <div className="flex justify-end space-x-2">
+                      <button
+                        onClick={() => router.push(`/polls/play/${poll.id}`)}
+                        className="rounded bg-green-100 p-1 text-green-600 hover:bg-green-200"
+                        disabled={deleteId === poll.id}
+                        title="Play Poll"
+                      >
+                        <PlayIcon className="h-5 w-5" />
+                      </button>
                       <button
                         onClick={() => router.push(`/polls/edit/${poll.id}`)}
                         className="rounded bg-yellow-100 p-1 text-yellow-600 hover:bg-yellow-200"

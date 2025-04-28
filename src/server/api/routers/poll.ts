@@ -118,4 +118,22 @@ export const pollRouter = createTRPCRouter({
       await pollService.deleteQuestion(input.pollId, input.questionId);
       return { success: true };
     }),
+
+  updateActiveQuestion: publicProcedure
+    .input(
+      z.object({
+        pollId: z.string(),
+        questionId: z.string().nullable(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      await pollService.updateActiveQuestion(input.pollId, input.questionId);
+      return { success: true };
+    }),
+
+  getActiveQuestion: publicProcedure
+    .input(z.object({ pollId: z.string() }))
+    .query(async ({ input }) => {
+      return await pollService.getActiveQuestion(input.pollId);
+    }),
 });
