@@ -6,28 +6,16 @@ import { useRouter } from "next/navigation";
 import Layout from "~/components/Layout";
 import { api } from "~/trpc/react";
 import { PlusIcon, PencilIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { useGroups } from "~/hooks/useGroups";
 
 export default function GroupsPage() {
   const router = useRouter();
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const {
-    data: groups,
-    isLoading,
-    refetch,
-  } = api.group.getAll.useQuery(undefined, {
-    // Refetch data when component mounts
-    refetchOnMount: true,
-    // Poll every 5 seconds to keep data fresh
-    refetchInterval: 5000,
-  });
+  // 실시간 Firebase 구독 사용
+  const { data: groups, loading: isLoading } = useGroups();
 
-  const deleteMutation = api.group.delete.useMutation({
-    onSuccess: () => {
-      // Immediately refetch data after deletion
-      refetch();
-    },
-  });
+  const deleteMutation = api.group.delete.useMutation();
 
   const handleDelete = async (id: string) => {
     if (confirm("Are you sure you want to delete this group?")) {

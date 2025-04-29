@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import {
   collection,
@@ -12,9 +12,15 @@ import {
   query,
   where,
   DocumentReference,
+  onSnapshot,
 } from "firebase/firestore";
 import { db } from "../../../../lib/firebase";
 import { Poll, Question } from "../../../../lib/types";
+import {
+  usePoll,
+  useActiveQuestion,
+  useQuestion,
+} from "../../../../hooks/usePolls";
 
 // Constants for Firebase collections
 const POLLS_COLLECTION = "polls";
@@ -163,58 +169,6 @@ const findMemberInGroup = async (
   };
 };
 
-// Get a single poll by ID
-const getPollById = async (id: string): Promise<Poll | null> => {
-  const pollRef = doc(db, POLLS_COLLECTION, id);
-  const pollDoc = await getDoc(pollRef);
-
-  if (!pollDoc.exists()) return null;
-
-  const data = pollDoc.data() as Omit<Poll, "id">;
-
-  // Fetch group data to get the group name
-  let groupData = { id: data.poll_group.id };
-  try {
-    const groupDoc = await getDoc(data.poll_group);
-    if (groupDoc.exists()) {
-      groupData = {
-        id: groupDoc.id,
-        ...groupDoc.data(),
-      };
-    }
-  } catch (error) {
-    console.error("Error fetching group data:", error);
-  }
-
-  return {
-    id: pollDoc.id,
-    ...data,
-    poll_group: groupData,
-  };
-};
-
-// Get a question by ID
-const getQuestionById = async (
-  pollId: string,
-  questionId: string,
-): Promise<Question | null> => {
-  const questionRef = doc(
-    db,
-    POLLS_COLLECTION,
-    pollId,
-    QUESTIONS_COLLECTION,
-    questionId,
-  );
-  const questionDoc = await getDoc(questionRef);
-
-  if (!questionDoc.exists()) return null;
-
-  return {
-    id: questionDoc.id,
-    ...(questionDoc.data() as Omit<Question, "id">),
-  };
-};
-
 // Get member's answer to a question or create/update it
 const getOrSubmitAnswer = async (
   pollId: string,
@@ -284,6 +238,52 @@ const getOrSubmitAnswer = async (
 
   // No existing answer found
   return null;
+};
+
+// Subscribe to member's answer with real-time updates
+const subscribeToMemberAnswer = (
+  pollId: string,
+  questionId: string,
+  memberRef: DocumentReference,
+  onData: (answer: Answer | null) => void,
+): (() => void) => {
+  const answersCol = collection(
+    db,
+    POLLS_COLLECTION,
+    pollId,
+    QUESTIONS_COLLECTION,
+    questionId,
+    ANSWERS_COLLECTION,
+  );
+
+  const q = query(answersCol, where("member_ref", "==", memberRef));
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      try {
+        if (snapshot.empty) {
+          onData(null);
+          return;
+        }
+
+        // Return the most recent answer if multiple exist
+        const answers = snapshot.docs
+          .map((doc) => ({
+            id: doc.id,
+            ...(doc.data() as Omit<Answer, "id">),
+          }))
+          .sort((a, b) => b.updated_at - a.updated_at);
+
+        onData(answers[0]);
+      } catch (error) {
+        console.error("Error in member answer subscription:", error);
+      }
+    },
+    (error) => {
+      console.error("Member answer subscription error:", error);
+    },
+  );
 };
 
 // LoginForm Component
@@ -475,23 +475,118 @@ export default function PollAnswerPage() {
   const params = useParams();
   const pollId = params.id as string;
 
-  const [poll, setPoll] = useState<Poll | null>(null);
-  const [question, setQuestion] = useState<Question | null>(null);
+  // Use real-time hooks instead of polling
+  const {
+    data: poll,
+    loading: pollLoading,
+    error: pollError,
+  } = usePoll(pollId);
+  const { data: activeQuestionId, loading: activeQuestionLoading } =
+    useActiveQuestion(pollId);
+  const { data: question, loading: questionLoading } = useQuestion(
+    pollId,
+    activeQuestionId || undefined,
+  );
+
   const [answer, setAnswer] = useState<Answer | null>(null);
-  const [loading, setLoading] = useState(true);
   const [loadingRefresh, setLoadingRefresh] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isQuestionActive, setIsQuestionActive] = useState(false);
-  const [noActivePoll, setNoActivePoll] = useState(false);
   const [transitionState, setTransitionState] = useState<
     "stable" | "loading" | "changing"
   >("loading");
-  const [lastCheckTime, setLastCheckTime] = useState(0); // 마지막 체크 시간 추적
-
-  const pollIdRef = useRef(pollId);
-  const activeQuestionRef = useRef<string | null | undefined>(null);
 
   const { memberAuth, isLoggedIn, login, logout } = useMemberAuth();
+  const memberRef = useRef<DocumentReference | null>(null);
+
+  // Log current state for debugging
+  useEffect(() => {
+    console.log("Poll Answer Page State:", {
+      pollId,
+      activeQuestionId,
+      question: question?.question || null,
+      pollLoading,
+      activeQuestionLoading,
+      questionLoading,
+      transitionState,
+    });
+  }, [
+    pollId,
+    activeQuestionId,
+    question,
+    pollLoading,
+    activeQuestionLoading,
+    questionLoading,
+    transitionState,
+  ]);
+
+  // Set error from poll error if any
+  useEffect(() => {
+    if (pollError) {
+      setError(`Failed to load poll data: ${pollError.message}`);
+    }
+  }, [pollError]);
+
+  // Update transition state when loading states change
+  useEffect(() => {
+    // Only change to stable when all loading is complete
+    if (!pollLoading && !activeQuestionLoading && !questionLoading) {
+      // Wait a bit before setting to stable to ensure all data is processed
+      setTimeout(() => {
+        setTransitionState("stable");
+      }, 300);
+    }
+  }, [pollLoading, activeQuestionLoading, questionLoading]);
+
+  // Safety timeout to prevent infinite loading
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (transitionState !== "stable") {
+        console.log("Safety timeout triggered - forcing stable state");
+        setTransitionState("stable");
+      }
+    }, 5000); // 5 seconds max loading time
+
+    return () => clearTimeout(timeoutId);
+  }, []);
+
+  // Get member reference from member auth
+  const getMemberRef = useCallback((): DocumentReference | null => {
+    if (!memberAuth || !memberAuth.member_ref) return null;
+    if (memberAuth.member_ref.trim() === "") return null;
+
+    try {
+      return doc(db, memberAuth.member_ref);
+    } catch (error) {
+      console.error("Error creating document reference:", error);
+      return null;
+    }
+  }, [memberAuth]);
+
+  // Update member reference when auth changes
+  useEffect(() => {
+    memberRef.current = getMemberRef();
+  }, [memberAuth, getMemberRef]);
+
+  // Subscribe to member's answer when question changes
+  useEffect(() => {
+    if (!pollId || !activeQuestionId || !memberRef.current) return;
+
+    setTransitionState("changing");
+
+    const unsubscribe = subscribeToMemberAnswer(
+      pollId,
+      activeQuestionId,
+      memberRef.current,
+      (answer) => {
+        setAnswer(answer);
+        setTransitionState("stable");
+      },
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [pollId, activeQuestionId, memberAuth]);
 
   // Adding the missing handleLogin function
   const handleLogin = async (name: string, no: string): Promise<boolean> => {
@@ -533,375 +628,49 @@ export default function PollAnswerPage() {
     }
   };
 
-  // Handle manual refresh
+  // Handle manual refresh - just for user satisfaction, not needed with real-time
   const handleRefresh = async () => {
     setLoadingRefresh(true);
-    await fetchPollData();
-    // 강제로 체크하여 최신 상태 반영
-    await checkActiveQuestion(true);
-    setLoadingRefresh(false);
-  };
-
-  // 상태 변경 시 컨텐츠를 안정적으로 표시하는 메서드
-  const setStableState = (fn: () => void) => {
-    setTransitionState("changing");
-    fn();
+    // Wait for a brief moment for visual feedback
     setTimeout(() => {
-      setTransitionState("stable");
-    }, 300);
+      setLoadingRefresh(false);
+    }, 500);
   };
-
-  // 최적화된 active question 확인 로직
-  const checkActiveQuestion = async (forceUpdate = false) => {
-    if (!pollId) {
-      setIsQuestionActive(false);
-      return false;
-    }
-
-    // 너무 빈번한 체크 방지 (강제 업데이트가 아니면 최소 3초 간격 유지)
-    const currentTime = Date.now();
-    if (!forceUpdate && currentTime - lastCheckTime < 3000) {
-      return isQuestionActive;
-    }
-
-    setLastCheckTime(currentTime);
-
-    try {
-      // Get the raw poll document first (faster)
-      const pollRef = doc(db, POLLS_COLLECTION, pollId);
-      const pollDoc = await getDoc(pollRef);
-
-      if (!pollDoc.exists()) {
-        setIsQuestionActive(false);
-        return false;
-      }
-
-      const pollData = pollDoc.data();
-      const activeQuestionId = pollData.active_question;
-
-      // 이전에 확인한 active question과 동일하면 불필요한 상태 업데이트 방지
-      if (activeQuestionId === activeQuestionRef.current && !forceUpdate) {
-        return isQuestionActive;
-      }
-
-      // 현재 active question ID 업데이트
-      activeQuestionRef.current = activeQuestionId;
-
-      // Case 1: No active question (poll ended or not started)
-      if (!activeQuestionId) {
-        if (!noActivePoll || forceUpdate) {
-          console.log("No active poll detected");
-
-          setStableState(() => {
-            setNoActivePoll(true);
-            setIsQuestionActive(false);
-            setPoll((prev) =>
-              prev ? { ...prev, active_question: null } : null,
-            );
-            setQuestion(null);
-          });
-        }
-        return false;
-      }
-
-      // Case 2: There is an active question now
-      if (noActivePoll || !poll?.active_question || forceUpdate) {
-        console.log("Poll started or changed to active state!");
-
-        setTransitionState("changing");
-        setNoActivePoll(false);
-
-        // Force complete refresh of poll data and question
-        const fullPollData = await getPollById(pollId);
-
-        if (fullPollData && fullPollData.active_question) {
-          const newQuestion = await getQuestionById(
-            pollId,
-            fullPollData.active_question,
-          );
-
-          setStableState(() => {
-            setPoll(fullPollData);
-
-            if (newQuestion) {
-              setQuestion(newQuestion);
-              setIsQuestionActive(true);
-
-              // Answer 데이터 로드는 별도로 처리
-              if (
-                memberAuth &&
-                newQuestion.id &&
-                memberAuth.member_ref &&
-                memberAuth.member_ref.trim() !== ""
-              ) {
-                const loadAnswer = async () => {
-                  try {
-                    const memberRef = doc(db, memberAuth.member_ref);
-                    const prevAnswer = await getOrSubmitAnswer(
-                      pollId,
-                      newQuestion.id,
-                      memberRef,
-                    );
-                    setAnswer(prevAnswer);
-                  } catch (error) {
-                    console.error(
-                      "Error fetching answer for new question:",
-                      error,
-                    );
-                  }
-                };
-
-                loadAnswer();
-              }
-            } else {
-              console.log("Question not found");
-              setIsQuestionActive(false);
-            }
-          });
-
-          return !!newQuestion;
-        }
-      }
-
-      // Case 3: Active question changed
-      if (
-        poll &&
-        poll.active_question &&
-        activeQuestionId !== poll.active_question
-      ) {
-        console.log("Active question changed");
-
-        setTransitionState("changing");
-
-        // Active question changed - update everything
-        const fullPollData = await getPollById(pollId);
-
-        if (fullPollData && fullPollData.active_question) {
-          const newQuestion = await getQuestionById(
-            pollId,
-            fullPollData.active_question,
-          );
-
-          setStableState(() => {
-            setPoll(fullPollData);
-
-            if (newQuestion) {
-              setQuestion(newQuestion);
-              setIsQuestionActive(true);
-
-              // Answer 데이터 로드는 별도로 처리
-              if (
-                memberAuth &&
-                newQuestion.id &&
-                memberAuth.member_ref &&
-                memberAuth.member_ref.trim() !== ""
-              ) {
-                const loadAnswer = async () => {
-                  try {
-                    const memberRef = doc(db, memberAuth.member_ref);
-                    const prevAnswer = await getOrSubmitAnswer(
-                      pollId,
-                      newQuestion.id,
-                      memberRef,
-                    );
-                    setAnswer(prevAnswer);
-                  } catch (error) {
-                    console.error(
-                      "Error fetching answer for new question:",
-                      error,
-                    );
-                  }
-                };
-
-                loadAnswer();
-              }
-            } else {
-              console.log("Question not found after active question change");
-              setIsQuestionActive(false);
-            }
-          });
-
-          return !!newQuestion;
-        }
-      }
-
-      // Case 4: Check if current question is still the active one
-      const isActive = question?.id === activeQuestionId;
-
-      if (isActive !== isQuestionActive) {
-        setIsQuestionActive(isActive);
-      }
-
-      return isActive;
-    } catch (error) {
-      console.error("Error checking active question status:", error);
-      setTransitionState("stable");
-      return false;
-    }
-  };
-
-  // Optimized fetch poll data function
-  const fetchPollData = async () => {
-    try {
-      setLoading(true);
-      setTransitionState("loading");
-      setError(null);
-
-      const pollData = await getPollById(pollId);
-      setPoll(pollData);
-
-      if (!pollData) {
-        setError("Poll not found");
-        setLoading(false);
-        setTransitionState("stable");
-        return;
-      }
-
-      // Check if there's an active question
-      if (!pollData.active_question) {
-        setLoading(false);
-        setTransitionState("stable");
-        return;
-      }
-
-      // Fetch the active question
-      const activeQuestion = await getQuestionById(
-        pollId,
-        pollData.active_question,
-      );
-
-      // 질문이 없는 경우 상태 변환을 안정화
-      if (!activeQuestion) {
-        setLoading(false);
-        setTransitionState("stable");
-        return;
-      }
-
-      setQuestion(activeQuestion);
-      setIsQuestionActive(true);
-
-      // If user is logged in, fetch their previous answer
-      if (
-        memberAuth &&
-        activeQuestion.id &&
-        memberAuth.member_ref &&
-        memberAuth.member_ref.trim() !== ""
-      ) {
-        try {
-          // Convert member_ref path string to a document reference
-          const memberRef = doc(db, memberAuth.member_ref);
-
-          const prevAnswer = await getOrSubmitAnswer(
-            pollId,
-            activeQuestion.id,
-            memberRef,
-          );
-          setAnswer(prevAnswer);
-        } catch (error) {
-          console.error(
-            "Error creating member reference or fetching answer:",
-            error,
-          );
-        }
-      }
-    } catch (err) {
-      console.error("Error fetching poll data:", err);
-      setError("Failed to load poll data");
-    } finally {
-      setLoading(false);
-      setTransitionState("stable");
-    }
-  };
-
-  // 자동 업데이트를 위한 useEffect - 반응 속도와 화면 깜박임 균형 유지
-  useEffect(() => {
-    // 초기 체크
-    if (pollId) {
-      checkActiveQuestion(true);
-    }
-
-    // poll ID가 변경되면 참조 업데이트
-    pollIdRef.current = pollId;
-
-    // 3초마다 상태 확인 (이전 1.5초보다 증가)
-    const intervalId = setInterval(() => {
-      if (pollIdRef.current) {
-        checkActiveQuestion();
-      }
-    }, 3000);
-
-    return () => clearInterval(intervalId);
-  }, [pollId]);
-
-  // Force refresh when URL parameter changes or login state changes
-  useEffect(() => {
-    if (pollId) {
-      fetchPollData();
-    }
-  }, [pollId, isLoggedIn]);
 
   // Handle answer submission
   const handleAnswerSubmit = async (choice: string) => {
-    // Verify this is still the active question before submitting
-    const isActive = await checkActiveQuestion();
-
-    if (!isActive) {
+    if (!activeQuestionId || !memberRef.current || !pollId) {
+      console.error("Missing required data for answer submission");
       return;
     }
 
-    if (
-      memberAuth &&
-      question?.id &&
-      memberAuth.member_ref &&
-      memberAuth.member_ref.trim() !== ""
-    ) {
-      try {
-        // Convert member_ref path string to a document reference
-        const memberRef = doc(db, memberAuth.member_ref);
-
-        const updatedAnswer = await getOrSubmitAnswer(
-          pollId,
-          question.id,
-          memberRef,
-          choice, // Passing the choice means we want to submit/update the answer
-        );
-
-        setAnswer(updatedAnswer);
-      } catch (error) {
-        console.error(
-          "Error creating member reference or submitting answer:",
-          error,
-        );
-      }
-    }
-  };
-
-  // Get member reference from member auth
-  const getMemberRef = (): DocumentReference | null => {
-    if (!memberAuth || !memberAuth.member_ref) return null;
-
-    // Check if member_ref is empty to avoid the empty path error
-    if (memberAuth.member_ref.trim() === "") return null;
-
     try {
-      return doc(db, memberAuth.member_ref);
+      await getOrSubmitAnswer(
+        pollId,
+        activeQuestionId,
+        memberRef.current,
+        choice,
+      );
+      // Answer will update via the subscription
     } catch (error) {
-      console.error("Error creating document reference:", error);
-      return null;
+      console.error("Error submitting answer:", error);
     }
   };
+
+  // Determine if the question is active
+  const isQuestionActive = !!activeQuestionId;
 
   const renderQuestionForm = () => {
-    if (!question || !memberRef) return null;
+    if (!question || !memberRef.current) return null;
 
-    // 상태 전환 중에는 경고 메시지를 표시하지 않음
+    // Show warning if the question isn't active
     const showWarning = !isQuestionActive && transitionState === "stable";
 
     return (
       <QuestionForm
         question={question}
         pollId={pollId}
-        memberRef={memberRef}
+        memberRef={memberRef.current}
         prevAnswer={answer}
         onAnswerSubmit={handleAnswerSubmit}
         isActiveQuestion={isQuestionActive}
@@ -910,13 +679,13 @@ export default function PollAnswerPage() {
     );
   };
 
-  // 개선된 렌더링 로직 - 더 나은 전환 효과와 더 적은 플래시
+  // Improved rendering logic - better transition effects and less flashing
   const renderContent = () => {
-    // 상태 변화 중에는 현재 내용을 유지하되 로딩 인디케이터 표시
+    // During state changes, keep current content but show loading indicator
     if (transitionState === "changing" || transitionState === "loading") {
       return (
         <div className="relative">
-          {/* 내용이 유지되는 동안 반투명 오버레이와 로딩 인디케이터 표시 */}
+          {/* Show translucent overlay and loading indicator while keeping existing UI */}
           <div className="bg-opacity-60 absolute inset-0 z-10 flex items-center justify-center bg-white">
             <div className="text-center">
               <div className="mb-2 inline-block">
@@ -944,17 +713,17 @@ export default function PollAnswerPage() {
             </div>
           </div>
 
-          {/* 기존 UI 내용 유지 (반투명하게 표시됨) */}
+          {/* Keep existing UI content (shown as translucent) */}
           {renderMainContent()}
         </div>
       );
     }
 
-    // 안정적인 상태에서는 일반 컨텐츠 표시
+    // In stable state, show regular content
     return renderMainContent();
   };
 
-  // 메인 내용 렌더링 - transitionState와 상관없이 현재 상태 기반 렌더링
+  // Main content rendering - render based on current state regardless of transitionState
   const renderMainContent = () => {
     if (!isLoggedIn) {
       return (
@@ -973,7 +742,7 @@ export default function PollAnswerPage() {
       );
     }
 
-    if (!poll.active_question) {
+    if (!activeQuestionId) {
       return (
         <div className="mx-auto mt-10 max-w-md rounded-lg bg-white p-6 shadow-lg">
           <h2 className="mb-4 text-center text-2xl font-bold">
@@ -997,7 +766,7 @@ export default function PollAnswerPage() {
       );
     }
 
-    if (!memberRef) {
+    if (!memberRef.current) {
       return (
         <div className="mx-auto mt-10 max-w-md rounded-lg bg-red-100 p-6 text-red-700 shadow-lg">
           <h2 className="mb-4 text-2xl font-bold">Authentication Error</h2>
@@ -1015,7 +784,9 @@ export default function PollAnswerPage() {
     return renderQuestionForm();
   };
 
-  if (loading) {
+  const isLoading = pollLoading || activeQuestionLoading || questionLoading;
+
+  if (isLoading && transitionState === "loading") {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="text-2xl">Loading...</div>
@@ -1031,8 +802,6 @@ export default function PollAnswerPage() {
       </div>
     );
   }
-
-  const memberRef = getMemberRef();
 
   return (
     <div className="container mx-auto p-4">
@@ -1104,18 +873,7 @@ export default function PollAnswerPage() {
       </div>
 
       {/* Main content with improved transition handling */}
-      {loading ? (
-        <div className="flex h-64 items-center justify-center">
-          <div className="text-2xl">Loading...</div>
-        </div>
-      ) : error ? (
-        <div className="mx-auto mt-10 max-w-md rounded-lg bg-red-100 p-6 text-red-700 shadow-lg">
-          <h2 className="mb-4 text-2xl font-bold">Error</h2>
-          <p>{error}</p>
-        </div>
-      ) : (
-        renderContent()
-      )}
+      {renderContent()}
     </div>
   );
 }

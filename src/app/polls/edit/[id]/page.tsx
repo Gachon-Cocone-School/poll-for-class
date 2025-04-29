@@ -5,6 +5,8 @@ import { useRouter, useParams } from "next/navigation";
 import Layout from "~/components/Layout";
 import { api } from "~/trpc/react";
 import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { usePoll, usePollQuestions } from "~/hooks/usePolls";
+import { useGroups } from "~/hooks/useGroups";
 
 export default function EditPollPage() {
   const router = useRouter();
@@ -20,37 +22,62 @@ export default function EditPollPage() {
     Array<{ id?: string; question: string; choices: string[] }>
   >([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [formInitialized, setFormInitialized] = useState(false);
 
-  // Fetch poll data
-  const {
-    data: poll,
-    isLoading: isLoadingPoll,
-    error: pollError,
-  } = api.poll.getById.useQuery({ id }, { enabled: !!id });
+  // 디버그 로그 추가
+  console.log("Edit Poll Page - Poll ID:", id);
 
-  // Fetch poll questions
-  const { data: pollQuestions, isLoading: isLoadingQuestions } =
-    api.poll.getQuestions.useQuery({ pollId: id }, { enabled: !!id });
+  // Use real-time hooks for data fetching with error handling
+  const { data: poll, loading: isPollLoading, error: pollError } = usePoll(id);
 
-  // Fetch groups for dropdown
-  const { data: groups, isLoading: isLoadingGroups } =
-    api.group.getAll.useQuery();
+  const { data: pollQuestions, loading: isQuestionsLoading } =
+    usePollQuestions(id);
+
+  const { data: groups, loading: isGroupsLoading } = useGroups();
+
+  // 디버그 로그 추가
+  useEffect(() => {
+    console.log("Poll data:", poll);
+    console.log("Questions data:", pollQuestions);
+    console.log("Groups data:", groups);
+    console.log("Loading states:", {
+      isPollLoading,
+      isQuestionsLoading,
+      isGroupsLoading,
+    });
+  }, [
+    poll,
+    pollQuestions,
+    groups,
+    isPollLoading,
+    isQuestionsLoading,
+    isGroupsLoading,
+  ]);
+
+  // Determine overall loading state
+  const isLoading = isPollLoading || isQuestionsLoading || isGroupsLoading;
 
   // Set form data when poll data is loaded
   useEffect(() => {
-    if (poll) {
-      setFormData({
-        poll_name: poll.poll_name,
-        poll_description: poll.poll_description,
-        poll_group_id: poll.poll_group.id,
-      });
+    if (poll && !formInitialized) {
+      console.log("Setting form data from poll:", poll);
+      try {
+        setFormData({
+          poll_name: poll.poll_name || "",
+          poll_description: poll.poll_description || "",
+          poll_group_id: poll.poll_group?.id || "",
+        });
+        setFormInitialized(true);
+      } catch (error) {
+        console.error("Error setting form data:", error);
+      }
     }
-  }, [poll]);
+  }, [poll, formInitialized]);
 
   // Set questions when question data is loaded
   useEffect(() => {
     if (pollQuestions) {
+      console.log("Setting questions from pollQuestions:", pollQuestions);
       if (pollQuestions.length > 0) {
         setQuestions(pollQuestions);
       } else {
@@ -59,17 +86,11 @@ export default function EditPollPage() {
     }
   }, [pollQuestions]);
 
-  // Update loading state when all data is loaded
-  useEffect(() => {
-    if (!isLoadingPoll && !isLoadingGroups && !isLoadingQuestions) {
-      setIsLoading(false);
-    }
-  }, [isLoadingPoll, isLoadingGroups, isLoadingQuestions]);
-
   // Handle error
   useEffect(() => {
     if (pollError) {
       console.error("Error loading poll:", pollError);
+      alert(`Failed to load poll: ${pollError.message}`);
       router.push("/");
     }
   }, [pollError, router]);
@@ -228,8 +249,21 @@ export default function EditPollPage() {
 
   // If no poll data loaded but not loading, redirect
   if (!poll && !isLoading) {
-    router.push("/");
-    return null;
+    return (
+      <Layout>
+        <div className="mx-auto max-w-md rounded-md bg-yellow-50 p-4">
+          <p className="text-yellow-700">
+            Poll not found or still loading. If this persists, please try again.
+          </p>
+          <button
+            onClick={() => router.push("/")}
+            className="mt-4 rounded-md bg-gray-200 px-4 py-2 text-gray-700 hover:bg-gray-300"
+          >
+            Go back to Home
+          </button>
+        </div>
+      </Layout>
+    );
   }
 
   return (

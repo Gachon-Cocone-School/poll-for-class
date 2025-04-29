@@ -6,6 +6,13 @@ import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import Layout from "~/components/Layout";
 import { api } from "~/trpc/react";
 import { Question, Member, QuestionResult, Answer } from "~/lib/types";
+import {
+  usePoll,
+  useActiveQuestion,
+  usePollQuestions,
+  useQuestionAnswers,
+} from "~/hooks/usePolls";
+import { useGroupMembers } from "~/hooks/useGroups";
 
 export default function PollPlayPage() {
   const params = useParams();
@@ -16,188 +23,66 @@ export default function PollPlayPage() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [sortedQuestions, setSortedQuestions] = useState<Question[]>([]);
   const [sortedMembers, setSortedMembers] = useState<Member[]>([]);
-  const [isPollActive, setIsPollActive] = useState(false);
-  const [lastNavigationTime, setLastNavigationTime] = useState<number>(
-    Date.now(),
-  );
 
-  // Track if the component is mounted
-  const isMounted = useRef(true);
+  // Use real-time hooks for data fetching
+  const { data: poll, loading: pollLoading } = usePoll(pollId);
+  const { data: questions, loading: questionsLoading } =
+    usePollQuestions(pollId);
+  const { data: activeQuestionId, loading: activeQuestionLoading } =
+    useActiveQuestion(pollId);
 
-  // Context API에서 데이터 가져오기, 강제 리패치 추가
-  const utils = api.useUtils();
+  // Is poll active state based directly on activeQuestionId
+  const isPollActive = !!activeQuestionId;
 
-  // Clean up on unmount
-  useEffect(() => {
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    // 컴포넌트가 마운트될 때마다 데이터 강제 리패치
-    const refreshData = async () => {
-      await Promise.all([
-        utils.poll.getActiveQuestion.invalidate({ pollId }),
-        utils.poll.getById.invalidate({ id: pollId }),
-        utils.poll.getQuestions.invalidate({ pollId }),
-      ]);
-
-      // 그룹 ID가 있을 경우 멤버 데이터도 갱신
-      if (poll?.poll_group?.id) {
-        await utils.group.getMembers.invalidate({
-          groupId: poll.poll_group.id,
-        });
-      }
-
-      if (isMounted.current) {
-        setLastNavigationTime(Date.now());
-      }
-    };
-
-    refreshData();
-  }, [pollId, utils]);
-
-  // 데이터 가져오기
-  const { data: poll } = api.poll.getById.useQuery(
-    { id: pollId },
-    {
-      enabled: !!pollId,
-      refetchOnMount: "always",
-      refetchOnWindowFocus: true,
-      staleTime: 0,
-    },
-  );
-
-  const { data: questions } = api.poll.getQuestions.useQuery(
-    { pollId },
-    {
-      enabled: !!pollId,
-      refetchOnMount: "always",
-      refetchOnWindowFocus: true,
-      staleTime: 0,
-    },
-  );
-
-  const { data: activeQuestionId } = api.poll.getActiveQuestion.useQuery(
-    { pollId },
-    {
-      enabled: !!pollId,
-      refetchOnMount: "always",
-      refetchOnWindowFocus: true,
-      staleTime: 0,
-      refetchInterval: 2000, // 2초마다 active question 상태 확인
-    },
-  );
-
-  // 그룹 ID 가져오기
+  // Get the current group ID
   const groupId = poll?.poll_group?.id;
 
-  // 그룹 멤버 가져오기
-  const { data: members = [] } = api.group.getMembers.useQuery(
-    { groupId: groupId as string },
-    {
-      enabled: !!groupId,
-      refetchOnMount: "always",
-      refetchOnWindowFocus: true,
-      staleTime: 0,
-    },
-  );
+  // Get group members with real-time updates
+  const { data: members = [], loading: membersLoading } =
+    useGroupMembers(groupId);
 
-  // 현재 질문 가져오기
+  // Get the current question (based on index in sorted questions)
   const currentQuestion = sortedQuestions[currentQuestionIndex];
 
-  // Fetch answers for current question
-  const { data: questionAnswers = [] } = api.poll.getQuestionAnswers.useQuery(
-    {
-      pollId,
-      questionId: currentQuestion?.id || "",
-    },
-    {
-      enabled: !!pollId && !!currentQuestion?.id,
-      refetchOnMount: "always",
-      refetchOnWindowFocus: true,
-      staleTime: 0,
-      refetchInterval: isPollActive ? 2000 : false, // Only poll for answers when the poll is active
-    },
-  );
+  // Get answers for current question with real-time updates
+  const { data: questionAnswers = [], loading: answersLoading } =
+    useQuestionAnswers(pollId, currentQuestion?.id);
+
+  // For TRPC mutations
+  const utils = api.useUtils();
 
   // Mutation 설정
-  const updateActiveMutation = api.poll.updateActiveQuestion.useMutation({
-    onSuccess: () => {
-      utils.poll.getActiveQuestion.invalidate({ pollId });
-    },
-  });
+  const updateActiveMutation = api.poll.updateActiveQuestion.useMutation();
+  const calculateResultsMutation = api.poll.calculatePollResults.useMutation();
+  const clearResultsMutation = api.poll.clearPollResults.useMutation();
 
-  // Poll results mutations
-  const calculateResultsMutation = api.poll.calculatePollResults.useMutation({
-    onSuccess: () => {
-      utils.poll.getQuestions.invalidate({ pollId });
-    },
-  });
-
-  const clearResultsMutation = api.poll.clearPollResults.useMutation({
-    onSuccess: () => {
-      utils.poll.getQuestions.invalidate({ pollId });
-    },
-  });
-
-  // 질문 데이터 처리
+  // Sort questions when they change
   useEffect(() => {
-    if (!questions || questions.length === 0 || !isMounted.current) {
-      return;
-    }
+    if (!questions || questions.length === 0) return;
 
     const sorted = [...questions].sort((a, b) =>
       a.question.localeCompare(b.question),
     );
     setSortedQuestions(sorted);
 
-    const isActive = !!activeQuestionId;
-    setIsPollActive(isActive);
-
-    if (isActive && activeQuestionId) {
+    // If there's an active question, find and select it
+    if (activeQuestionId) {
       const index = sorted.findIndex((q) => q.id === activeQuestionId);
       if (index >= 0) {
         setCurrentQuestionIndex(index);
       }
     }
-  }, [questions, activeQuestionId, lastNavigationTime]);
+  }, [questions, activeQuestionId]);
 
-  // 멤버 데이터 정렬
+  // Sort members when they change
   useEffect(() => {
-    if (!members.length || !isMounted.current) return;
+    if (!members.length) return;
 
     const sorted = [...members].sort((a, b) =>
       a.member_name.localeCompare(b.member_name),
     );
     setSortedMembers(sorted);
   }, [members]);
-
-  // 윈도우 포커스 이벤트 처리
-  useEffect(() => {
-    const handleFocus = async () => {
-      if (!isMounted.current) return;
-
-      await utils.poll.getActiveQuestion.invalidate({ pollId });
-      await utils.poll.getById.invalidate({ id: pollId });
-      await utils.poll.getQuestions.invalidate({ pollId });
-
-      const currentGroupId = poll?.poll_group?.id;
-      if (currentGroupId) {
-        await utils.group.getMembers.invalidate({ groupId: currentGroupId });
-      }
-
-      if (isMounted.current) {
-        setLastNavigationTime(Date.now());
-      }
-    };
-
-    window.addEventListener("focus", handleFocus);
-    return () => {
-      window.removeEventListener("focus", handleFocus);
-    };
-  }, [pollId, utils]);
 
   // Poll 시작/종료 핸들러
   const handlePollStart = useCallback(() => {
@@ -213,7 +98,6 @@ export default function PollPlayPage() {
       });
     }
 
-    setIsPollActive(true);
     updateActiveMutation.mutate({ pollId, questionId: currentQuestion.id });
   }, [
     pollId,
@@ -234,7 +118,6 @@ export default function PollPlayPage() {
       questionId: currentQuestion.id,
     });
 
-    setIsPollActive(false);
     updateActiveMutation.mutate({ pollId, questionId: null });
   }, [
     pollId,
@@ -260,36 +143,22 @@ export default function PollPlayPage() {
   // Helper function to check if a member has answered
   const checkIfMemberHasAnswered = useCallback(
     (member: Member) => {
-      if (
-        !poll?.poll_group?.id ||
-        !questionAnswers.length ||
-        !currentQuestion?.id
-      )
-        return false;
+      if (!questionAnswers.length || !currentQuestion?.id) return false;
 
-      // poll_group.id 값에서 members/${member.member_no} 경로 구성
-      const memberId = member.id;
-
-      // question의 answers에서 해당 멤버의 ref와 일치하는지 확인
+      // Find if this member has answered the current question
       return questionAnswers.some((answer) => {
         if (!answer.member_ref) return false;
 
         try {
-          // Firebase DocumentReference 객체에서 경로 정보 추출
-          // member_ref 객체는 _key.path.segments 배열에 경로 정보를 가지고 있음
           if (
             answer.member_ref._key &&
             answer.member_ref._key.path &&
             Array.isArray(answer.member_ref._key.path.segments)
           ) {
-            // segments 배열에서 마지막 요소가 member 문서 ID
             const segments = answer.member_ref._key.path.segments;
             const answeredMemberId = segments[segments.length - 1];
-
-            // member.member_no와 DocumentReference의 마지막 경로 세그먼트 비교
-            return answeredMemberId === memberId;
+            return answeredMemberId === member.id;
           }
-
           return false;
         } catch (error) {
           console.error("Error comparing member refs:", error);
@@ -297,11 +166,11 @@ export default function PollPlayPage() {
         }
       });
     },
-    [poll?.poll_group?.id, questionAnswers, currentQuestion?.id, sortedMembers],
+    [questionAnswers, currentQuestion?.id],
   );
 
   // 로딩 상태 확인
-  const isLoading = !poll || !questions;
+  const isLoading = pollLoading || questionsLoading;
 
   // 결과에서 총 투표수 계산
   const getTotalVotes = (results: QuestionResult): number => {

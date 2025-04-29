@@ -8,6 +8,10 @@ import {
   getDoc,
   query,
   where,
+  onSnapshot,
+  DocumentReference,
+  DocumentData,
+  Unsubscribe,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { Poll, Question, Answer, QuestionResult } from "./types";
@@ -51,6 +55,56 @@ export const getPolls = async (): Promise<Poll[]> => {
   return polls;
 };
 
+// Subscribe to polls with real-time updates
+export const subscribeToPolls = (
+  onData: (polls: Poll[]) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe => {
+  const pollsCol = collection(db, POLLS_COLLECTION);
+
+  return onSnapshot(
+    pollsCol,
+    async (snapshot) => {
+      try {
+        const polls = await Promise.all(
+          snapshot.docs.map(async (doc) => {
+            const data = doc.data() as Omit<Poll, "id">;
+
+            // Fetch group data to get the group name
+            let groupData = { id: data.poll_group.id };
+            try {
+              const groupDoc = await getDoc(data.poll_group);
+              if (groupDoc.exists()) {
+                groupData = {
+                  id: groupDoc.id,
+                  ...groupDoc.data(),
+                };
+              }
+            } catch (error) {
+              console.error("Error fetching group data:", error);
+            }
+
+            return {
+              id: doc.id,
+              ...data,
+              poll_group: groupData,
+            };
+          }),
+        );
+
+        onData(polls);
+      } catch (error) {
+        console.error("Error in polls subscription:", error);
+        if (onError) onError(error as Error);
+      }
+    },
+    (error) => {
+      console.error("Polls subscription error:", error);
+      if (onError) onError(error);
+    },
+  );
+};
+
 // Get a single poll by ID
 export const getPollById = async (id: string): Promise<Poll | null> => {
   const pollRef = doc(db, POLLS_COLLECTION, id);
@@ -79,6 +133,58 @@ export const getPollById = async (id: string): Promise<Poll | null> => {
     ...data,
     poll_group: groupData,
   };
+};
+
+// Subscribe to a single poll with real-time updates
+export const subscribeToPoll = (
+  id: string,
+  onData: (poll: Poll | null) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe => {
+  const pollRef = doc(db, POLLS_COLLECTION, id);
+
+  return onSnapshot(
+    pollRef,
+    async (docSnapshot) => {
+      try {
+        if (!docSnapshot.exists()) {
+          onData(null);
+          return;
+        }
+
+        const data = docSnapshot.data() as Omit<Poll, "id">;
+
+        // Fetch group data to get the group name
+        let groupData = { id: data.poll_group.id };
+        try {
+          const groupDoc = await getDoc(data.poll_group);
+          if (groupDoc.exists()) {
+            groupData = {
+              id: groupDoc.id,
+              ...groupDoc.data(),
+            };
+          }
+        } catch (error) {
+          console.error("Error fetching group data:", error);
+        }
+
+        const poll = {
+          id: docSnapshot.id,
+          ...data,
+          poll_group: groupData,
+        };
+
+        onData(poll);
+      } catch (error) {
+        console.error("Error in poll subscription:", error);
+        if (onError) onError(error as Error);
+      }
+    },
+    (error) => {
+      console.error("Poll subscription error:", error);
+      if (onError) onError(error);
+    },
+  );
 };
 
 // Create a new poll
@@ -134,6 +240,41 @@ export const getPollQuestions = async (pollId: string): Promise<Question[]> => {
     id: doc.id,
     ...(doc.data() as Omit<Question, "id">),
   }));
+};
+
+// Subscribe to poll questions with real-time updates
+export const subscribeToPollQuestions = (
+  pollId: string,
+  onData: (questions: Question[]) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe => {
+  const questionsCol = collection(
+    db,
+    POLLS_COLLECTION,
+    pollId,
+    QUESTIONS_COLLECTION,
+  );
+
+  return onSnapshot(
+    questionsCol,
+    (snapshot) => {
+      try {
+        const questions = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...(doc.data() as Omit<Question, "id">),
+        }));
+
+        onData(questions);
+      } catch (error) {
+        console.error("Error in questions subscription:", error);
+        if (onError) onError(error as Error);
+      }
+    },
+    (error) => {
+      console.error("Questions subscription error:", error);
+      if (onError) onError(error);
+    },
+  );
 };
 
 // Create a new question for a poll
@@ -206,6 +347,37 @@ export const getActiveQuestion = async (
   return data.active_question || null;
 };
 
+// Subscribe to active question changes
+export const subscribeToActiveQuestion = (
+  pollId: string,
+  onData: (questionId: string | null) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe => {
+  const pollRef = doc(db, POLLS_COLLECTION, pollId);
+
+  return onSnapshot(
+    pollRef,
+    (docSnapshot) => {
+      try {
+        if (!docSnapshot.exists()) {
+          onData(null);
+          return;
+        }
+
+        const data = docSnapshot.data();
+        onData(data.active_question || null);
+      } catch (error) {
+        console.error("Error in active question subscription:", error);
+        if (onError) onError(error as Error);
+      }
+    },
+    (error) => {
+      console.error("Active question subscription error:", error);
+      if (onError) onError(error);
+    },
+  );
+};
+
 // Get a question by ID
 export const getQuestionById = async (
   pollId: string,
@@ -226,6 +398,48 @@ export const getQuestionById = async (
     id: questionDoc.id,
     ...(questionDoc.data() as Omit<Question, "id">),
   };
+};
+
+// Subscribe to a question with real-time updates
+export const subscribeToQuestion = (
+  pollId: string,
+  questionId: string,
+  onData: (question: Question | null) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe => {
+  const questionRef = doc(
+    db,
+    POLLS_COLLECTION,
+    pollId,
+    QUESTIONS_COLLECTION,
+    questionId,
+  );
+
+  return onSnapshot(
+    questionRef,
+    (docSnapshot) => {
+      try {
+        if (!docSnapshot.exists()) {
+          onData(null);
+          return;
+        }
+
+        const question = {
+          id: docSnapshot.id,
+          ...(docSnapshot.data() as Omit<Question, "id">),
+        };
+
+        onData(question);
+      } catch (error) {
+        console.error("Error in question subscription:", error);
+        if (onError) onError(error as Error);
+      }
+    },
+    (error) => {
+      console.error("Question subscription error:", error);
+      if (onError) onError(error);
+    },
+  );
 };
 
 // Submit an answer to a question
@@ -283,6 +497,55 @@ export const getMemberAnswer = async (
   return answers[0];
 };
 
+// Subscribe to member's answer
+export const subscribeToMemberAnswer = (
+  pollId: string,
+  questionId: string,
+  memberId: string,
+  onData: (answer: Answer | null) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe => {
+  const answersCol = collection(
+    db,
+    POLLS_COLLECTION,
+    pollId,
+    QUESTIONS_COLLECTION,
+    questionId,
+    ANSWERS_COLLECTION,
+  );
+
+  const q = query(answersCol, where("member_id", "==", memberId));
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      try {
+        if (snapshot.empty) {
+          onData(null);
+          return;
+        }
+
+        // Return the most recent answer if multiple exist
+        const answers = snapshot.docs
+          .map((doc) => ({
+            id: doc.id,
+            ...(doc.data() as Omit<Answer, "id">),
+          }))
+          .sort((a, b) => b.created_at - a.created_at);
+
+        onData(answers[0]);
+      } catch (error) {
+        console.error("Error in member answer subscription:", error);
+        if (onError) onError(error as Error);
+      }
+    },
+    (error) => {
+      console.error("Member answer subscription error:", error);
+      if (onError) onError(error);
+    },
+  );
+};
+
 // Get all answers for a question
 export const getAllAnswersForQuestion = async (
   pollId: string,
@@ -303,6 +566,44 @@ export const getAllAnswersForQuestion = async (
     id: doc.id,
     ...(doc.data() as Omit<Answer, "id">),
   }));
+};
+
+// Subscribe to all answers for a question
+export const subscribeToAllAnswersForQuestion = (
+  pollId: string,
+  questionId: string,
+  onData: (answers: Answer[]) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe => {
+  const answersCol = collection(
+    db,
+    POLLS_COLLECTION,
+    pollId,
+    QUESTIONS_COLLECTION,
+    questionId,
+    ANSWERS_COLLECTION,
+  );
+
+  return onSnapshot(
+    answersCol,
+    (snapshot) => {
+      try {
+        const answers = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...(doc.data() as Omit<Answer, "id">),
+        }));
+
+        onData(answers);
+      } catch (error) {
+        console.error("Error in answers subscription:", error);
+        if (onError) onError(error as Error);
+      }
+    },
+    (error) => {
+      console.error("Answers subscription error:", error);
+      if (onError) onError(error);
+    },
+  );
 };
 
 // Calculate and save poll results for a question
@@ -382,4 +683,42 @@ export const getPollResults = async (
 ): Promise<QuestionResult | null> => {
   const question = await getQuestionById(pollId, questionId);
   return question?.poll_result || null;
+};
+
+// Subscribe to poll results
+export const subscribeToPollResults = (
+  pollId: string,
+  questionId: string,
+  onData: (results: QuestionResult | null) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe => {
+  const questionRef = doc(
+    db,
+    POLLS_COLLECTION,
+    pollId,
+    QUESTIONS_COLLECTION,
+    questionId,
+  );
+
+  return onSnapshot(
+    questionRef,
+    (docSnapshot) => {
+      try {
+        if (!docSnapshot.exists()) {
+          onData(null);
+          return;
+        }
+
+        const data = docSnapshot.data();
+        onData(data.poll_result || null);
+      } catch (error) {
+        console.error("Error in poll results subscription:", error);
+        if (onError) onError(error as Error);
+      }
+    },
+    (error) => {
+      console.error("Poll results subscription error:", error);
+      if (onError) onError(error);
+    },
+  );
 };

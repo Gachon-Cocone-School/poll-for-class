@@ -11,28 +11,16 @@ import {
   TrashIcon,
   PlayIcon,
 } from "@heroicons/react/24/outline";
+import { usePolls } from "~/hooks/usePolls"; // 실시간 구독 훅 사용
 
 export default function PollsPage() {
   const router = useRouter();
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const {
-    data: polls,
-    isLoading,
-    refetch,
-  } = api.poll.getAll.useQuery(undefined, {
-    // Refetch data when component mounts
-    refetchOnMount: true,
-    // Poll every 5 seconds to keep data fresh
-    refetchInterval: 5000,
-  });
+  // TRPC 대신 실시간 Firebase 구독 사용
+  const { data: polls, loading: isLoading } = usePolls();
 
-  const deleteMutation = api.poll.delete.useMutation({
-    onSuccess: () => {
-      // Immediately refetch data after deletion
-      refetch();
-    },
-  });
+  const deleteMutation = api.poll.delete.useMutation();
 
   const handleDelete = async (id: string) => {
     if (confirm("Are you sure you want to delete this poll?")) {

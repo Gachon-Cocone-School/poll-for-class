@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Layout from "~/components/Layout";
 import { api } from "~/trpc/react";
 import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { useGroups } from "~/hooks/useGroups"; // 실시간 구독 훅 추가
 
 export default function CreatePollPage() {
   const router = useRouter();
@@ -18,8 +19,9 @@ export default function CreatePollPage() {
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { data: groups, isLoading: isLoadingGroups } =
-    api.group.getAll.useQuery();
+  // 실시간 Firebase 구독으로 교체
+  const { data: groups, loading: isLoadingGroups } = useGroups();
+
   const createPoll = api.poll.create.useMutation();
   const addQuestion = api.poll.addQuestion.useMutation();
 
@@ -109,9 +111,8 @@ export default function CreatePollPage() {
         });
       }
 
-      // Redirect to main page and signal to refresh
+      // Firebase 실시간 구독을 사용하므로 router.refresh() 필요 없음
       router.push("/");
-      router.refresh();
     } catch (error) {
       console.error("Error creating poll:", error);
       alert("Failed to create poll. Please try again.");

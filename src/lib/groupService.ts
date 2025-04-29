@@ -10,6 +10,8 @@ import {
   query,
   collectionGroup,
   where,
+  onSnapshot,
+  Unsubscribe,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { Group, Member } from "./types";
@@ -27,6 +29,35 @@ export const getGroups = async (): Promise<Group[]> => {
   }));
 };
 
+// Subscribe to all groups with real-time updates
+export const subscribeToGroups = (
+  onData: (groups: Group[]) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe => {
+  const groupsCol = collection(db, GROUPS_COLLECTION);
+
+  return onSnapshot(
+    groupsCol,
+    (snapshot) => {
+      try {
+        const groups = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...(doc.data() as Omit<Group, "id">),
+        }));
+
+        onData(groups);
+      } catch (error) {
+        console.error("Error in groups subscription:", error);
+        if (onError) onError(error as Error);
+      }
+    },
+    (error) => {
+      console.error("Groups subscription error:", error);
+      if (onError) onError(error);
+    },
+  );
+};
+
 // Get a single group by ID
 export const getGroupById = async (id: string): Promise<Group | null> => {
   const groupRef = doc(db, GROUPS_COLLECTION, id);
@@ -38,6 +69,41 @@ export const getGroupById = async (id: string): Promise<Group | null> => {
     id: groupDoc.id,
     ...(groupDoc.data() as Omit<Group, "id">),
   };
+};
+
+// Subscribe to a single group with real-time updates
+export const subscribeToGroup = (
+  id: string,
+  onData: (group: Group | null) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe => {
+  const groupRef = doc(db, GROUPS_COLLECTION, id);
+
+  return onSnapshot(
+    groupRef,
+    (docSnapshot) => {
+      try {
+        if (!docSnapshot.exists()) {
+          onData(null);
+          return;
+        }
+
+        const group = {
+          id: docSnapshot.id,
+          ...(docSnapshot.data() as Omit<Group, "id">),
+        };
+
+        onData(group);
+      } catch (error) {
+        console.error("Error in group subscription:", error);
+        if (onError) onError(error as Error);
+      }
+    },
+    (error) => {
+      console.error("Group subscription error:", error);
+      if (onError) onError(error);
+    },
+  );
 };
 
 // Create a new group
@@ -89,6 +155,41 @@ export const getGroupMembers = async (groupId: string): Promise<Member[]> => {
     id: doc.id,
     ...(doc.data() as Member),
   }));
+};
+
+// Subscribe to group members with real-time updates
+export const subscribeToGroupMembers = (
+  groupId: string,
+  onData: (members: Member[]) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe => {
+  const membersCol = collection(
+    db,
+    GROUPS_COLLECTION,
+    groupId,
+    MEMBERS_COLLECTION,
+  );
+
+  return onSnapshot(
+    membersCol,
+    (snapshot) => {
+      try {
+        const members = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...(doc.data() as Member),
+        }));
+
+        onData(members);
+      } catch (error) {
+        console.error("Error in group members subscription:", error);
+        if (onError) onError(error as Error);
+      }
+    },
+    (error) => {
+      console.error("Group members subscription error:", error);
+      if (onError) onError(error);
+    },
+  );
 };
 
 // Add a member to a group

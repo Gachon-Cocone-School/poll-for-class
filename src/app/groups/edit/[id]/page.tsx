@@ -5,6 +5,8 @@ import { useRouter, useParams } from "next/navigation";
 import Layout from "~/components/Layout";
 import { api } from "~/trpc/react";
 import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { useGroup } from "~/hooks/useGroups";
+import { useGroupMembers } from "~/hooks/useGroups";
 
 export default function EditGroupPage() {
   const router = useRouter();
@@ -19,32 +21,41 @@ export default function EditGroupPage() {
     Array<{ id?: string; member_name: string; member_no: string }>
   >([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [formInitialized, setFormInitialized] = useState(false);
 
-  // Fetch group data
+  // Firebase 실시간 구독 사용
   const {
     data: group,
-    isLoading: isLoadingGroup,
+    loading: isLoadingGroup,
     error: groupError,
-  } = api.group.getById.useQuery({ id }, { enabled: !!id });
+  } = useGroup(id);
+  const { data: groupMembers, loading: isLoadingMembers } = useGroupMembers(id);
 
-  // Fetch group members
-  const { data: groupMembers, isLoading: isLoadingMembers } =
-    api.group.getMembers.useQuery({ groupId: id }, { enabled: !!id });
+  // 디버그 로그 추가
+  console.log("Group Edit Page - Group ID:", id);
+  console.log("Group data:", group);
+  console.log("Members data:", groupMembers);
 
   // Set form data when group data is loaded
   useEffect(() => {
-    if (group) {
-      setFormData({
-        group_name: group.group_name,
-        group_description: group.group_description,
-      });
+    if (group && !formInitialized) {
+      console.log("Setting form data from group:", group);
+      try {
+        setFormData({
+          group_name: group.group_name || "",
+          group_description: group.group_description || "",
+        });
+        setFormInitialized(true);
+      } catch (error) {
+        console.error("Error setting form data:", error);
+      }
     }
-  }, [group]);
+  }, [group, formInitialized]);
 
   // Set members when member data is loaded
   useEffect(() => {
     if (groupMembers) {
+      console.log("Setting members from groupMembers:", groupMembers);
       if (groupMembers.length > 0) {
         setMembers(groupMembers);
       } else {
@@ -53,21 +64,16 @@ export default function EditGroupPage() {
     }
   }, [groupMembers]);
 
-  // Update loading state when all data is loaded
-  useEffect(() => {
-    if (!isLoadingGroup && !isLoadingMembers) {
-      setIsLoading(false);
-    }
-  }, [isLoadingGroup, isLoadingMembers]);
-
   // Handle error
   useEffect(() => {
     if (groupError) {
       console.error("Error loading group:", groupError);
+      alert(`Failed to load group: ${groupError.message}`);
       router.push("/groups");
     }
   }, [groupError, router]);
 
+  // tRPC는 여전히 필요한 뮤테이션에만 사용
   const updateGroup = api.group.update.useMutation();
   const addMember = api.group.addMember.useMutation();
   const removeMember = api.group.removeMember.useMutation();
@@ -157,6 +163,9 @@ export default function EditGroupPage() {
     }
   };
 
+  // Loading state
+  const isLoading = isLoadingGroup || isLoadingMembers;
+
   // Show loading state
   if (isLoading) {
     return (
@@ -170,8 +179,22 @@ export default function EditGroupPage() {
 
   // If no group data loaded but not loading, redirect
   if (!group && !isLoading) {
-    router.push("/groups");
-    return null;
+    return (
+      <Layout>
+        <div className="mx-auto max-w-md rounded-md bg-yellow-50 p-4">
+          <p className="text-yellow-700">
+            Group not found or still loading. If this persists, please try
+            again.
+          </p>
+          <button
+            onClick={() => router.push("/groups")}
+            className="mt-4 rounded-md bg-gray-200 px-4 py-2 text-gray-700 hover:bg-gray-300"
+          >
+            Back to Groups
+          </button>
+        </div>
+      </Layout>
+    );
   }
 
   return (
