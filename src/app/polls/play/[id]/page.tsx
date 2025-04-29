@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import Layout from "~/components/Layout";
 import { api } from "~/trpc/react";
-import { Question, Member } from "~/lib/types";
+import { Question, Member, QuestionResult, Answer } from "~/lib/types";
 
 export default function PollPlayPage() {
   const params = useParams();
@@ -21,8 +21,18 @@ export default function PollPlayPage() {
     Date.now(),
   );
 
+  // Track if the component is mounted
+  const isMounted = useRef(true);
+
   // Context API에서 데이터 가져오기, 강제 리패치 추가
   const utils = api.useUtils();
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     // 컴포넌트가 마운트될 때마다 데이터 강제 리패치
@@ -40,7 +50,9 @@ export default function PollPlayPage() {
         });
       }
 
-      setLastNavigationTime(Date.now());
+      if (isMounted.current) {
+        setLastNavigationTime(Date.now());
+      }
     };
 
     refreshData();
@@ -51,9 +63,9 @@ export default function PollPlayPage() {
     { id: pollId },
     {
       enabled: !!pollId,
-      refetchOnMount: "always", // 항상 마운트시 다시 가져옴
+      refetchOnMount: "always",
       refetchOnWindowFocus: true,
-      staleTime: 0, // 항상 데이터를 신선하지 않은 것으로 간주
+      staleTime: 0,
     },
   );
 
@@ -92,32 +104,58 @@ export default function PollPlayPage() {
     },
   );
 
+  // 현재 질문 가져오기
+  const currentQuestion = sortedQuestions[currentQuestionIndex];
+
+  // Fetch answers for current question
+  const { data: questionAnswers = [] } = api.poll.getQuestionAnswers.useQuery(
+    {
+      pollId,
+      questionId: currentQuestion?.id || "",
+    },
+    {
+      enabled: !!pollId && !!currentQuestion?.id,
+      refetchOnMount: "always",
+      refetchOnWindowFocus: true,
+      staleTime: 0,
+      refetchInterval: isPollActive ? 2000 : false, // Only poll for answers when the poll is active
+    },
+  );
+
   // Mutation 설정
   const updateActiveMutation = api.poll.updateActiveQuestion.useMutation({
     onSuccess: () => {
-      // 변경 후 즉시 데이터 다시 가져오기
       utils.poll.getActiveQuestion.invalidate({ pollId });
+    },
+  });
+
+  // Poll results mutations
+  const calculateResultsMutation = api.poll.calculatePollResults.useMutation({
+    onSuccess: () => {
+      utils.poll.getQuestions.invalidate({ pollId });
+    },
+  });
+
+  const clearResultsMutation = api.poll.clearPollResults.useMutation({
+    onSuccess: () => {
+      utils.poll.getQuestions.invalidate({ pollId });
     },
   });
 
   // 질문 데이터 처리
   useEffect(() => {
-    // 질문이 없을 경우 처리 중단
-    if (!questions || questions.length === 0) {
+    if (!questions || questions.length === 0 || !isMounted.current) {
       return;
     }
 
-    // 질문 알파벳순 정렬
     const sorted = [...questions].sort((a, b) =>
       a.question.localeCompare(b.question),
     );
     setSortedQuestions(sorted);
 
-    // poll 활성화 상태 설정
     const isActive = !!activeQuestionId;
     setIsPollActive(isActive);
 
-    // 활성 질문이 있으면 해당 인덱스로 설정
     if (isActive && activeQuestionId) {
       const index = sorted.findIndex((q) => q.id === activeQuestionId);
       if (index >= 0) {
@@ -128,36 +166,38 @@ export default function PollPlayPage() {
 
   // 멤버 데이터 정렬
   useEffect(() => {
-    if (members.length > 0) {
-      const sorted = [...members].sort((a, b) =>
-        a.member_name.localeCompare(b.member_name),
-      );
-      setSortedMembers(sorted);
-    }
+    if (!members.length || !isMounted.current) return;
+
+    const sorted = [...members].sort((a, b) =>
+      a.member_name.localeCompare(b.member_name),
+    );
+    setSortedMembers(sorted);
   }, [members]);
 
   // 윈도우 포커스 이벤트 처리
   useEffect(() => {
     const handleFocus = async () => {
-      // 포커스 시 데이터 강제 리패치
+      if (!isMounted.current) return;
+
       await utils.poll.getActiveQuestion.invalidate({ pollId });
       await utils.poll.getById.invalidate({ id: pollId });
       await utils.poll.getQuestions.invalidate({ pollId });
 
-      if (poll?.poll_group?.id) {
-        await utils.group.getMembers.invalidate({
-          groupId: poll.poll_group.id,
-        });
+      const currentGroupId = poll?.poll_group?.id;
+      if (currentGroupId) {
+        await utils.group.getMembers.invalidate({ groupId: currentGroupId });
       }
 
-      setLastNavigationTime(Date.now());
+      if (isMounted.current) {
+        setLastNavigationTime(Date.now());
+      }
     };
 
     window.addEventListener("focus", handleFocus);
     return () => {
       window.removeEventListener("focus", handleFocus);
     };
-  }, [pollId, poll, utils]);
+  }, [pollId, utils]);
 
   // Poll 시작/종료 핸들러
   const handlePollStart = useCallback(() => {
@@ -166,14 +206,43 @@ export default function PollPlayPage() {
     const currentQuestion = sortedQuestions[currentQuestionIndex];
     if (!currentQuestion?.id) return;
 
+    if (currentQuestion.poll_result) {
+      clearResultsMutation.mutate({
+        pollId,
+        questionId: currentQuestion.id,
+      });
+    }
+
     setIsPollActive(true);
     updateActiveMutation.mutate({ pollId, questionId: currentQuestion.id });
-  }, [pollId, sortedQuestions, currentQuestionIndex, updateActiveMutation]);
+  }, [
+    pollId,
+    sortedQuestions,
+    currentQuestionIndex,
+    updateActiveMutation,
+    clearResultsMutation,
+  ]);
 
   const handlePollEnd = useCallback(() => {
+    if (!sortedQuestions.length) return;
+
+    const currentQuestion = sortedQuestions[currentQuestionIndex];
+    if (!currentQuestion?.id) return;
+
+    calculateResultsMutation.mutate({
+      pollId,
+      questionId: currentQuestion.id,
+    });
+
     setIsPollActive(false);
     updateActiveMutation.mutate({ pollId, questionId: null });
-  }, [pollId, updateActiveMutation]);
+  }, [
+    pollId,
+    sortedQuestions,
+    currentQuestionIndex,
+    updateActiveMutation,
+    calculateResultsMutation,
+  ]);
 
   // 네비게이션 핸들러
   const goToNextQuestion = useCallback(() => {
@@ -188,11 +257,56 @@ export default function PollPlayPage() {
     }
   }, [currentQuestionIndex]);
 
+  // Helper function to check if a member has answered
+  const checkIfMemberHasAnswered = useCallback(
+    (member: Member) => {
+      if (
+        !poll?.poll_group?.id ||
+        !questionAnswers.length ||
+        !currentQuestion?.id
+      )
+        return false;
+
+      // poll_group.id 값에서 members/${member.member_no} 경로 구성
+      const memberId = member.id;
+
+      // question의 answers에서 해당 멤버의 ref와 일치하는지 확인
+      return questionAnswers.some((answer) => {
+        if (!answer.member_ref) return false;
+
+        try {
+          // Firebase DocumentReference 객체에서 경로 정보 추출
+          // member_ref 객체는 _key.path.segments 배열에 경로 정보를 가지고 있음
+          if (
+            answer.member_ref._key &&
+            answer.member_ref._key.path &&
+            Array.isArray(answer.member_ref._key.path.segments)
+          ) {
+            // segments 배열에서 마지막 요소가 member 문서 ID
+            const segments = answer.member_ref._key.path.segments;
+            const answeredMemberId = segments[segments.length - 1];
+
+            // member.member_no와 DocumentReference의 마지막 경로 세그먼트 비교
+            return answeredMemberId === memberId;
+          }
+
+          return false;
+        } catch (error) {
+          console.error("Error comparing member refs:", error);
+          return false;
+        }
+      });
+    },
+    [poll?.poll_group?.id, questionAnswers, currentQuestion?.id, sortedMembers],
+  );
+
   // 로딩 상태 확인
   const isLoading = !poll || !questions;
 
-  // 현재 질문 가져오기
-  const currentQuestion = sortedQuestions[currentQuestionIndex];
+  // 결과에서 총 투표수 계산
+  const getTotalVotes = (results: QuestionResult): number => {
+    return Object.values(results).reduce((sum, count) => sum + count, 0);
+  };
 
   return (
     <Layout>
@@ -216,9 +330,8 @@ export default function PollPlayPage() {
         <div className="grid h-[calc(100vh-180px)] grid-cols-1 gap-6 md:grid-cols-2">
           {/* Left Panel - Questions - Full height */}
           <div className="flex h-full flex-col rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            {/* Question Navigation - Moved to left and added Poll Start/End buttons on right */}
+            {/* Question Navigation */}
             <div className="mb-4 flex items-center justify-between">
-              {/* Left side - Question navigation */}
               <div className="flex items-center">
                 <button
                   onClick={goToPreviousQuestion}
@@ -251,7 +364,6 @@ export default function PollPlayPage() {
                 </button>
               </div>
 
-              {/* Right side - Poll Start/End buttons */}
               <div className="flex space-x-2">
                 <button
                   onClick={handlePollStart}
@@ -284,14 +396,42 @@ export default function PollPlayPage() {
                 {currentQuestion?.question}
               </h2>
               <div className="space-y-3">
-                {currentQuestion?.choices.map((choice, index) => (
-                  <div
-                    key={index}
-                    className="rounded-md border border-gray-300 p-3 hover:bg-gray-50"
-                  >
-                    {choice}
-                  </div>
-                ))}
+                {currentQuestion?.choices.map((choice, index) => {
+                  const hasResults = currentQuestion.poll_result != null;
+                  const votes = hasResults
+                    ? currentQuestion.poll_result?.[choice] || 0
+                    : 0;
+                  const totalVotes = hasResults
+                    ? getTotalVotes(currentQuestion.poll_result!)
+                    : 0;
+                  const percentage =
+                    totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
+
+                  return (
+                    <div key={index} className="space-y-1">
+                      <div className="rounded-md border border-gray-300 p-3 hover:bg-gray-50">
+                        {choice}
+                      </div>
+
+                      {/* Poll Results */}
+                      {hasResults && (
+                        <div className="mt-1">
+                          <div className="flex items-center">
+                            <div className="h-4 w-full rounded-full bg-gray-200">
+                              <div
+                                className="h-4 rounded-full bg-blue-600 transition-all duration-500"
+                                style={{ width: `${percentage}%` }}
+                              />
+                            </div>
+                            <span className="ml-2 w-24 text-sm">
+                              {votes} votes ({percentage}%)
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -304,14 +444,23 @@ export default function PollPlayPage() {
 
             <div className="grid flex-grow grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
               {sortedMembers.length > 0 ? (
-                sortedMembers.map((member, index) => (
-                  <div
-                    key={index}
-                    className="flex h-16 items-center justify-center rounded-md border border-gray-300 bg-gray-50 p-2 text-center text-sm"
-                  >
-                    {member.member_name || "Unnamed"}
-                  </div>
-                ))
+                sortedMembers.map((member, index) => {
+                  // Use the helper function to check if member has answered
+                  const hasAnswered = checkIfMemberHasAnswered(member);
+
+                  return (
+                    <div
+                      key={index}
+                      className={`flex h-16 items-center justify-center rounded-md border p-2 text-center text-sm ${
+                        hasAnswered
+                          ? "border-green-500 bg-green-50"
+                          : "border-gray-300 bg-gray-50"
+                      }`}
+                    >
+                      {member.member_name || "Unnamed"}
+                    </div>
+                  );
+                })
               ) : (
                 <div className="col-span-full text-center text-gray-500">
                   No members found in this group

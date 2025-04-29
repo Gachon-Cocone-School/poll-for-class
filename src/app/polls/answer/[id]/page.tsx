@@ -493,6 +493,46 @@ export default function PollAnswerPage() {
 
   const { memberAuth, isLoggedIn, login, logout } = useMemberAuth();
 
+  // Adding the missing handleLogin function
+  const handleLogin = async (name: string, no: string): Promise<boolean> => {
+    if (!poll || !poll.poll_group?.id) {
+      return false;
+    }
+
+    try {
+      // Find member in the group
+      const memberResult = await findMemberInGroup(
+        poll.poll_group.id,
+        name,
+        no,
+      );
+
+      // If member exists, save authentication
+      if (
+        memberResult.exists &&
+        memberResult.memberId &&
+        memberResult.memberRef
+      ) {
+        const memberRefPath = memberResult.memberRef.path;
+
+        login({
+          member_id: memberResult.memberId,
+          member_ref: memberRefPath,
+          member_name: name,
+          member_no: no,
+          group_id: poll.poll_group.id,
+        });
+
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error("Login error:", error);
+      return false;
+    }
+  };
+
   // Handle manual refresh
   const handleRefresh = async () => {
     setLoadingRefresh(true);

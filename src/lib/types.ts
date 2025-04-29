@@ -1,6 +1,7 @@
 import { DocumentReference } from "firebase/firestore";
 
 export interface Member {
+  id?: string;
   member_name: string;
   member_no: string;
 }
@@ -11,10 +12,15 @@ export interface Group {
   group_description: string;
 }
 
+export interface QuestionResult {
+  [choice: string]: number;
+}
+
 export interface Question {
   id?: string;
   question: string;
   choices: string[];
+  poll_result?: QuestionResult | null;
 }
 
 export interface Poll {

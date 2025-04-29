@@ -136,4 +136,56 @@ export const pollRouter = createTRPCRouter({
     .query(async ({ input }) => {
       return await pollService.getActiveQuestion(input.pollId);
     }),
+
+  calculatePollResults: publicProcedure
+    .input(
+      z.object({
+        pollId: z.string(),
+        questionId: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const results = await pollService.calculateAndSavePollResults(
+        input.pollId,
+        input.questionId,
+      );
+      return { success: true, results };
+    }),
+
+  clearPollResults: publicProcedure
+    .input(
+      z.object({
+        pollId: z.string(),
+        questionId: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      await pollService.clearPollResults(input.pollId, input.questionId);
+      return { success: true };
+    }),
+
+  getPollResults: publicProcedure
+    .input(
+      z.object({
+        pollId: z.string(),
+        questionId: z.string(),
+      }),
+    )
+    .query(async ({ input }) => {
+      return await pollService.getPollResults(input.pollId, input.questionId);
+    }),
+
+  getQuestionAnswers: publicProcedure
+    .input(
+      z.object({
+        pollId: z.string(),
+        questionId: z.string(),
+      }),
+    )
+    .query(async ({ input }) => {
+      return await pollService.getAllAnswersForQuestion(
+        input.pollId,
+        input.questionId,
+      );
+    }),
 });

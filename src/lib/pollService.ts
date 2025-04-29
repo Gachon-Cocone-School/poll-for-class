@@ -10,7 +10,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { Poll, Question, Answer } from "./types";
+import { Poll, Question, Answer, QuestionResult } from "./types";
 
 const POLLS_COLLECTION = "polls";
 const QUESTIONS_COLLECTION = "questions";
@@ -281,4 +281,105 @@ export const getMemberAnswer = async (
     .sort((a, b) => b.created_at - a.created_at);
 
   return answers[0];
+};
+
+// Get all answers for a question
+export const getAllAnswersForQuestion = async (
+  pollId: string,
+  questionId: string,
+): Promise<Answer[]> => {
+  const answersCol = collection(
+    db,
+    POLLS_COLLECTION,
+    pollId,
+    QUESTIONS_COLLECTION,
+    questionId,
+    ANSWERS_COLLECTION,
+  );
+
+  const answersSnapshot = await getDocs(answersCol);
+
+  return answersSnapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...(doc.data() as Omit<Answer, "id">),
+  }));
+};
+
+// Calculate and save poll results for a question
+export const calculateAndSavePollResults = async (
+  pollId: string,
+  questionId: string,
+): Promise<QuestionResult> => {
+  // Get all answers for the question
+  const answersCol = collection(
+    db,
+    POLLS_COLLECTION,
+    pollId,
+    QUESTIONS_COLLECTION,
+    questionId,
+    ANSWERS_COLLECTION,
+  );
+
+  const answersSnapshot = await getDocs(answersCol);
+
+  // Initialize results object with all choices set to 0
+  const question = await getQuestionById(pollId, questionId);
+  const results: QuestionResult = {};
+
+  if (question) {
+    // Initialize all choices with zero count
+    question.choices.forEach((choice) => {
+      results[choice] = 0;
+    });
+
+    // Count answers by choice
+    answersSnapshot.docs.forEach((doc) => {
+      const answer = doc.data() as Answer;
+      if (results[answer.choice] !== undefined) {
+        results[answer.choice]++;
+      }
+    });
+
+    // Save results to the question document
+    const questionRef = doc(
+      db,
+      POLLS_COLLECTION,
+      pollId,
+      QUESTIONS_COLLECTION,
+      questionId,
+    );
+
+    await updateDoc(questionRef, {
+      poll_result: results,
+    });
+  }
+
+  return results;
+};
+
+// Clear poll results for a question
+export const clearPollResults = async (
+  pollId: string,
+  questionId: string,
+): Promise<void> => {
+  const questionRef = doc(
+    db,
+    POLLS_COLLECTION,
+    pollId,
+    QUESTIONS_COLLECTION,
+    questionId,
+  );
+
+  await updateDoc(questionRef, {
+    poll_result: null,
+  });
+};
+
+// Get poll results for a question
+export const getPollResults = async (
+  pollId: string,
+  questionId: string,
+): Promise<QuestionResult | null> => {
+  const question = await getQuestionById(pollId, questionId);
+  return question?.poll_result || null;
 };
