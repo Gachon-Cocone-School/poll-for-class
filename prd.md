@@ -105,3 +105,9 @@ firebase 에 다음과 같은 collection 이 있어.
 # firestore database 의 실시간 연동 기능 강화
 
 onSnapshot, useState 를 이용해서 firestore database 와 실시간 연동하게 리팩토링 해줘.
+
+# qr 보여주기
+
+- QR 주소 : MY_END_POINT 환경변수 + '/polls/answer/{poll id}'
+- QR 표시 위치 : poll play 화면의 왼쪽의 질문과 초이스 아래에 QR 을 그려준다.
+- QR 은 Poll start 일 경우에만 보여준다.

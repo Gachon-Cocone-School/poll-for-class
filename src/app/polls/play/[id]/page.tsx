@@ -13,6 +13,8 @@ import {
   useQuestionAnswers,
 } from "~/hooks/usePolls";
 import { useGroupMembers } from "~/hooks/useGroups";
+import { QRCodeSVG } from "qrcode.react";
+import { env } from "~/env";
 
 export default function PollPlayPage() {
   const params = useParams();
@@ -47,6 +49,9 @@ export default function PollPlayPage() {
   // Get answers for current question with real-time updates
   const { data: questionAnswers = [], loading: answersLoading } =
     useQuestionAnswers(pollId, currentQuestion?.id);
+
+  // Create QR code URL for the poll answer page
+  const qrCodeUrl = `${env.NEXT_PUBLIC_MY_END_POINT}/polls/answer/${pollId}`;
 
   // For TRPC mutations
   const utils = api.useUtils();
@@ -302,6 +307,19 @@ export default function PollPlayPage() {
                   );
                 })}
               </div>
+
+              {/* QR Code - Only show when poll is active */}
+              {isPollActive && (
+                <div className="mt-8 flex flex-col items-center">
+                  <h3 className="mb-3 text-center text-sm font-medium text-gray-600">
+                    Scan to answer the poll
+                  </h3>
+                  <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+                    <QRCodeSVG value={qrCodeUrl} size={150} />
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500">{qrCodeUrl}</p>
+                </div>
+              )}
             </div>
           </div>
 
