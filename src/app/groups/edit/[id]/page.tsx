@@ -22,6 +22,8 @@ export default function EditGroupPage() {
   >([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formInitialized, setFormInitialized] = useState(false);
+  const [batchText, setBatchText] = useState("");
+  const [isProcessingBatch, setIsProcessingBatch] = useState(false);
 
   // Firebase 실시간 구독 사용
   const {
@@ -77,6 +79,36 @@ export default function EditGroupPage() {
   const updateGroup = api.group.update.useMutation();
   const addMember = api.group.addMember.useMutation();
   const removeMember = api.group.removeMember.useMutation();
+  const processBatchMembers = api.group.processBatchMembers.useMutation();
+
+  const handleProcessBatch = async () => {
+    if (!batchText.trim()) return;
+
+    try {
+      setIsProcessingBatch(true);
+      const result = await processBatchMembers.mutateAsync({ batchText });
+
+      if (result.members && result.members.length > 0) {
+        // Keep any existing members with data
+        const existingMembers = members.filter(
+          (m) => m.member_name.trim() !== "" || m.member_no.trim() !== "",
+        );
+
+        // Combine with new members from batch processing
+        setMembers([...existingMembers, ...result.members]);
+
+        // Clear the batch text input
+        setBatchText("");
+      }
+    } catch (error) {
+      console.error("Error processing batch:", error);
+      alert(
+        "Failed to process batch text. Please try again or input members manually.",
+      );
+    } finally {
+      setIsProcessingBatch(false);
+    }
+  };
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -244,6 +276,40 @@ export default function EditGroupPage() {
               className="w-full rounded-md border border-gray-300 p-2 focus:border-blue-500 focus:outline-none"
               rows={3}
             />
+          </div>
+
+          {/* Batch Member Input Section */}
+          <div className="mb-6">
+            <div className="mb-2">
+              <label
+                htmlFor="batch_members"
+                className="mb-2 block font-medium text-gray-700"
+              >
+                Batch Member Input
+              </label>
+              <p className="mb-2 text-sm text-gray-500">
+                Paste member information in any format. The system will
+                automatically extract names and IDs.
+              </p>
+            </div>
+            <textarea
+              id="batch_members"
+              value={batchText}
+              onChange={(e) => setBatchText(e.target.value)}
+              className="w-full rounded-md border border-gray-300 p-2 focus:border-blue-500 focus:outline-none"
+              rows={6}
+              placeholder="Example: John Doe 12345, Jane Smith ID: A67890..."
+            />
+            <div className="mt-2 flex justify-end">
+              <button
+                type="button"
+                disabled={isProcessingBatch || !batchText.trim()}
+                onClick={handleProcessBatch}
+                className="rounded-md bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:opacity-50"
+              >
+                {isProcessingBatch ? "Processing..." : "Process Batch"}
+              </button>
+            </div>
           </div>
 
           <div className="mb-6">

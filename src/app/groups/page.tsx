@@ -5,12 +5,19 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Layout from "~/components/Layout";
 import { api } from "~/trpc/react";
-import { PlusIcon, PencilIcon, TrashIcon } from "@heroicons/react/24/outline";
+import {
+  PlusIcon,
+  PencilIcon,
+  TrashIcon,
+  ArrowLeftOnRectangleIcon,
+} from "@heroicons/react/24/outline";
 import { useGroups } from "~/hooks/useGroups";
+import { useAdminAuth } from "~/hooks/useAdminAuth";
 
 export default function GroupsPage() {
   const router = useRouter();
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const { logout, isAuthenticated } = useAdminAuth();
 
   // 실시간 Firebase 구독 사용
   const { data: groups, loading: isLoading } = useGroups();
@@ -43,6 +50,15 @@ export default function GroupsPage() {
             <PlusIcon className="mr-2 h-5 w-5" />
             Add Group
           </Link>
+          {isAuthenticated && (
+            <button
+              onClick={logout}
+              className="flex items-center rounded-md bg-red-600 px-4 py-2 text-white hover:bg-red-700"
+            >
+              <ArrowLeftOnRectangleIcon className="mr-2 h-5 w-5" />
+              Logout
+            </button>
+          )}
         </div>
       </div>
 

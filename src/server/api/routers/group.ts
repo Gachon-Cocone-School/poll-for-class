@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "../trpc";
 import * as groupService from "../../../lib/groupService";
+import { processBatchMemberText } from "../../../lib/aiService";
 
 // Define validation schemas using Zod
 const createGroupSchema = z.object({
@@ -83,5 +84,29 @@ export const groupRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       await groupService.removeMemberFromGroup(input.groupId, input.memberId);
       return { success: true };
+    }),
+
+  processBatchMembers: publicProcedure
+    .input(z.object({ batchText: z.string() }))
+    .mutation(async ({ input }) => {
+      try {
+        console.log(
+          "Processing batch text:",
+          input.batchText.substring(0, 50) + "...",
+        );
+        const processedMembers = await processBatchMemberText(input.batchText);
+        console.log(
+          `Successfully processed ${processedMembers.length} members`,
+        );
+        return { members: processedMembers };
+      } catch (error) {
+        console.error("Error in processBatchMembers:", error);
+        if (error instanceof Error) {
+          throw new Error(
+            `Failed to process batch member text: ${error.message}`,
+          );
+        }
+        throw new Error("Failed to process batch member text");
+      }
     }),
 });

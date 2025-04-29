@@ -10,12 +10,15 @@ import {
   PencilIcon,
   TrashIcon,
   PlayIcon,
+  ArrowLeftOnRectangleIcon,
 } from "@heroicons/react/24/outline";
 import { usePolls } from "~/hooks/usePolls"; // 실시간 구독 훅 사용
+import { useAdminAuth } from "~/hooks/useAdminAuth"; // Admin auth hook 추가
 
 export default function PollsPage() {
   const router = useRouter();
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const { logout, isAuthenticated } = useAdminAuth(); // Admin auth hook 사용
 
   // TRPC 대신 실시간 Firebase 구독 사용
   const { data: polls, loading: isLoading } = usePolls();
@@ -48,6 +51,15 @@ export default function PollsPage() {
             <PlusIcon className="mr-2 h-5 w-5" />
             Add Poll
           </Link>
+          {isAuthenticated && (
+            <button
+              onClick={logout}
+              className="flex items-center rounded-md bg-red-600 px-4 py-2 text-white hover:bg-red-700"
+            >
+              <ArrowLeftOnRectangleIcon className="mr-2 h-5 w-5" />
+              Logout
+            </button>
+          )}
         </div>
       </div>
 

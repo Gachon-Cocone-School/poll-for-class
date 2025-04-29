@@ -8,6 +8,7 @@ export const env = createEnv({
    */
   server: {
     NODE_ENV: z.enum(["development", "test", "production"]),
+    OPENAI_API_KEY: z.string().optional(),
   },
 
   /**
@@ -18,6 +19,7 @@ export const env = createEnv({
   client: {
     // NEXT_PUBLIC_CLIENTVAR: z.string(),
     NEXT_PUBLIC_MY_END_POINT: z.string().default("http://localhost:3000"),
+    NEXT_PUBLIC_ADMIN_PASSWORD: z.string().default("admin123"),
   },
 
   /**
@@ -28,6 +30,8 @@ export const env = createEnv({
     NODE_ENV: process.env.NODE_ENV,
     // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
     NEXT_PUBLIC_MY_END_POINT: process.env.NEXT_PUBLIC_MY_END_POINT,
+    NEXT_PUBLIC_ADMIN_PASSWORD: process.env.NEXT_PUBLIC_ADMIN_PASSWORD,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially
