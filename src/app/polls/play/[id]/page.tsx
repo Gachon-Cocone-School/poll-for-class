@@ -345,11 +345,11 @@ export default function PollPlayPage() {
 
           {/* Right Panel - Members - Full height */}
           <div className="flex h-full flex-col rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="mb-4 text-lg font-semibold">
+            <h2 className="mb-2 text-lg font-semibold">
               {strings.group.members} ({sortedMembers.length})
             </h2>
 
-            <div className="grid flex-grow grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            <div className="grid grid-cols-3 gap-x-1 gap-y-0.5 overflow-y-auto sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
               {sortedMembers.length > 0 ? (
                 sortedMembers.map((member, index) => {
                   // Use the helper function to check if member has answered
@@ -358,7 +358,7 @@ export default function PollPlayPage() {
                   return (
                     <div
                       key={index}
-                      className={`flex h-16 items-center justify-center rounded-md border p-2 text-center text-sm ${
+                      className={`flex h-12 items-center justify-center rounded-md border px-2 py-1 text-center text-base ${
                         hasAnswered
                           ? "border-green-500 bg-green-50"
                           : "border-gray-300 bg-gray-50"

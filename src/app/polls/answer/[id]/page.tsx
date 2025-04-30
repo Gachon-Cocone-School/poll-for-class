@@ -108,7 +108,7 @@ const MemberStats = ({
 
   // QuestionForm 컴포넌트와 정확히 동일한 스타일링 적용
   return (
-    <div className="mx-auto mt-10 max-w-2xl rounded-lg bg-blue-50 p-6 shadow-lg">
+    <div className="mx-auto mt-10 max-w-2xl rounded-lg bg-white p-6 shadow-lg">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between">
         <div>
           <h3 className="font-medium text-gray-800">
@@ -273,10 +273,11 @@ const findMemberInGroup = async (
     MEMBERS_COLLECTION,
   );
 
+  // FOR TESTING: Only check member_name, disable member_no check
   const q = query(
     membersCol,
     where("member_name", "==", memberName),
-    where("member_no", "==", memberNo),
+    where("member_no", "==", memberNo), // 테스트를 위해 member_no 체크를 주석 처리
   );
 
   const memberSnapshot = await getDocs(q);

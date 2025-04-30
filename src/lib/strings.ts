@@ -126,13 +126,11 @@ export const strings = {
     title: "통계",
     participantStatistics: "참가자 통계: {0}",
     leaderboard: "리더보드",
-    otherParticipants: "다른 참가자들",
     noStatsAvailable: "이 투표에 대한 리더보드 정보가 없습니다.",
     rank: "순위",
     name: "이름",
     score: "점수",
     participation: "참여",
-    correctPredictions: "정답 수",
     points: "점",
     rankDisplay: "{0} / {1}",
 
