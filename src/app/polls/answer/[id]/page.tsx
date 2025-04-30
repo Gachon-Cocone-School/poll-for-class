@@ -15,7 +15,7 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 import { db } from "../../../../lib/firebase";
-import { Poll, Question } from "../../../../lib/types";
+import { Poll, Question, ParticipantStats } from "../../../../lib/types";
 import {
   usePoll,
   useActiveQuestion,
@@ -28,6 +28,139 @@ const QUESTIONS_COLLECTION = "questions";
 const ANSWERS_COLLECTION = "answers";
 const GROUPS_COLLECTION = "groups";
 const MEMBERS_COLLECTION = "members";
+
+// MemberStats component to display member name and statistics
+const MemberStats = ({
+  memberName,
+  pollId,
+}: {
+  memberName: string;
+  pollId: string;
+}) => {
+  const [memberStats, setMemberStats] = useState<ParticipantStats | null>(null);
+  const [totalParticipants, setTotalParticipants] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
+
+  // 이전 상태 값을 참조하기 위한 ref
+  const prevStatsRef = useRef<ParticipantStats | null>(null);
+
+  useEffect(() => {
+    if (!pollId || !memberName) return;
+
+    console.log("Setting up real-time listener for participant stats");
+    setLoading(true);
+
+    // Set up real-time listener for the poll document
+    const pollRef = doc(db, POLLS_COLLECTION, pollId);
+
+    // 실시간 업데이트를 위한 향상된 옵션
+    const unsubscribe = onSnapshot(
+      pollRef,
+      { includeMetadataChanges: false }, // 서버 데이터만 처리
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const pollData = snapshot.data();
+          const participantStats = pollData.participant_stats;
+
+          if (participantStats && Array.isArray(participantStats)) {
+            // Find the stats for the current logged-in member
+            const stats = participantStats.find(
+              (stat) => stat.member_name === memberName,
+            );
+
+            // 총 참가자 수 설정
+            setTotalParticipants(participantStats.length);
+
+            // 상태 변경이 있을 때만 업데이트 (불필요한 리렌더링 방지)
+            if (stats) {
+              if (
+                !prevStatsRef.current ||
+                prevStatsRef.current.score !== stats.score ||
+                prevStatsRef.current.rank !== stats.rank
+              ) {
+                console.log(
+                  `Stats updated: Score=${stats.score}, Rank=${stats.rank}`,
+                );
+                setMemberStats(stats);
+                prevStatsRef.current = stats;
+              }
+            } else {
+              if (prevStatsRef.current !== null) {
+                setMemberStats(null);
+                prevStatsRef.current = null;
+              }
+            }
+          } else {
+            if (prevStatsRef.current !== null) {
+              setMemberStats(null);
+              setTotalParticipants(0);
+              prevStatsRef.current = null;
+            }
+          }
+        } else {
+          if (prevStatsRef.current !== null) {
+            setMemberStats(null);
+            setTotalParticipants(0);
+            prevStatsRef.current = null;
+          }
+        }
+
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Error getting participant stats:", error);
+        setLoading(false);
+      },
+    );
+
+    // 컴포넌트 언마운트 시 리스너 정리
+    return () => {
+      console.log("Cleaning up participant stats listener");
+      unsubscribe();
+    };
+  }, [pollId, memberName]);
+
+  if (!memberName) return null;
+
+  // QuestionForm 컴포넌트와 정확히 동일한 스타일링 적용
+  return (
+    <div className="mx-auto mt-10 max-w-2xl rounded-lg bg-blue-50 p-6 shadow-lg">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+        <div>
+          <h3 className="font-medium text-gray-800">
+            참가자:{" "}
+            <span className="font-bold text-blue-700">{memberName}</span>
+          </h3>
+        </div>
+
+        {loading ? (
+          <div className="mt-2 text-sm text-gray-500 md:mt-0">
+            통계 정보를 불러오는 중...
+          </div>
+        ) : memberStats ? (
+          <div className="mt-2 flex flex-col md:mt-0">
+            <div className="mb-1 text-sm text-gray-700">
+              <span className="font-medium">점수:</span>{" "}
+              <span className="font-bold text-green-600">
+                {memberStats.score * 10}점
+              </span>
+            </div>
+            <div className="text-sm text-gray-700">
+              <span className="font-medium">랭킹:</span>{" "}
+              <span className="font-bold text-purple-600">
+                {memberStats.rank} / {totalParticipants}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-2 text-sm text-gray-500 md:mt-0">
+            아직 통계 정보가 없습니다.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 // Updated Answer interface
 interface Answer {
@@ -871,6 +1004,11 @@ export default function PollAnswerPage() {
           )}
         </div>
       </div>
+
+      {/* Member stats */}
+      {memberAuth?.member_name && (
+        <MemberStats memberName={memberAuth.member_name} pollId={pollId} />
+      )}
 
       {/* Main content with improved transition handling */}
       {renderContent()}

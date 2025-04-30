@@ -186,3 +186,10 @@ onSnapshot, useState 를 이용해서 firestore database 와 실시간 연동하
     - 다득표 선택을 맞춘 횟수
     - 점수 : 투표참가횟수 + 다득표 맞춘 횟수
     - 랭킹 : 몇등/참가자수
+
+# answer 화면 개선
+
+- 화면에 현재 로그인되어 있는 member_name 을 보여준다.
+- firestore에 저장된 poll 에 participants_stat 필드가 존재할 경우 해당되는 나의 정보를 찾아서 보여준다.
+  - 현재 나의 점수 : score 값 * 10 을 해서 보여준다.
+  - 현재 나의 랭킹 : rank / total # of participant_stats
