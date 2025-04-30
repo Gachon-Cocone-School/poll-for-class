@@ -16,11 +16,12 @@ export interface QuestionResult {
   [choice: string]: number;
 }
 
-export interface Question {
-  id?: string;
-  question: string;
-  choices: string[];
-  poll_result?: QuestionResult | null;
+export interface ParticipantStats {
+  member_name: string;
+  participation_count: number;
+  correct_predictions: number;
+  score: number;
+  rank: number; // 문자열에서 숫자로 변경
 }
 
 export interface Poll {
@@ -29,6 +30,14 @@ export interface Poll {
   poll_description: string;
   poll_group: DocumentReference;
   active_question?: string | null;
+  participant_stats?: ParticipantStats[];
+}
+
+export interface Question {
+  id?: string;
+  question: string;
+  choices: string[];
+  poll_result?: QuestionResult | null;
 }
 
 export interface Answer {

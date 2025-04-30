@@ -14,7 +14,14 @@ import {
   Unsubscribe,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { Poll, Question, Answer, QuestionResult } from "./types";
+import {
+  Poll,
+  Question,
+  Answer,
+  QuestionResult,
+  ParticipantStats,
+  Member,
+} from "./types";
 
 const POLLS_COLLECTION = "polls";
 const QUESTIONS_COLLECTION = "questions";
@@ -718,6 +725,210 @@ export const subscribeToPollResults = (
     },
     (error) => {
       console.error("Poll results subscription error:", error);
+      if (onError) onError(error);
+    },
+  );
+};
+
+// Calculate and save participant statistics for a poll
+export const calculateAndSaveParticipantStats = async (
+  pollId: string,
+): Promise<ParticipantStats[]> => {
+  // Get all questions for the poll
+  const questionsCol = collection(
+    db,
+    POLLS_COLLECTION,
+    pollId,
+    QUESTIONS_COLLECTION,
+  );
+  const questionsSnapshot = await getDocs(questionsCol);
+
+  const questions = questionsSnapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...(doc.data() as Omit<Question, "id">),
+  }));
+
+  // Get the poll to access the group reference
+  const pollRef = doc(db, POLLS_COLLECTION, pollId);
+  const pollDoc = await getDoc(pollRef);
+
+  if (!pollDoc.exists()) {
+    return [];
+  }
+
+  const pollData = pollDoc.data();
+  const groupRef = pollData.poll_group;
+
+  // Get all members in the group
+  const membersCol = collection(db, GROUPS_COLLECTION, groupRef.id, "members");
+  const membersSnapshot = await getDocs(membersCol);
+
+  const memberStats: Record<
+    string,
+    {
+      member_id: string;
+      member_name: string;
+      participation_count: number;
+      correct_predictions: number;
+      score: number;
+    }
+  > = {};
+
+  // Initialize stats for all members
+  membersSnapshot.docs.forEach((doc) => {
+    const member = doc.data() as Member;
+    memberStats[doc.id] = {
+      member_id: doc.id,
+      member_name: member.member_name,
+      participation_count: 0,
+      correct_predictions: 0,
+      score: 0,
+    };
+  });
+
+  // For each question with results, analyze the answers
+  for (const question of questions) {
+    if (!question.id || !question.poll_result) continue;
+
+    // Find the winning choices (can be multiple in case of a tie)
+    let maxCount = 0;
+    let winningChoices: string[] = [];
+
+    // First find the maximum vote count
+    Object.entries(question.poll_result).forEach(([choice, count]) => {
+      if (count > maxCount) {
+        maxCount = count;
+      }
+    });
+
+    // Then find all choices that have that maximum count
+    Object.entries(question.poll_result).forEach(([choice, count]) => {
+      if (count === maxCount) {
+        winningChoices.push(choice);
+      }
+    });
+
+    // Get all answers for this question
+    const answersCol = collection(
+      db,
+      POLLS_COLLECTION,
+      pollId,
+      QUESTIONS_COLLECTION,
+      question.id,
+      ANSWERS_COLLECTION,
+    );
+
+    const answersSnapshot = await getDocs(answersCol);
+
+    // Process each answer
+    answersSnapshot.docs.forEach((doc) => {
+      const answer = doc.data() as Answer;
+
+      // Only count if the member is in our tracking
+      if (memberStats[answer.member_ref.id]) {
+        // Increment participation count
+        memberStats[answer.member_ref.id].participation_count++;
+
+        // Check if the member selected one of the winning choices
+        if (winningChoices.includes(answer.choice)) {
+          memberStats[answer.member_ref.id].correct_predictions++;
+        }
+      }
+    });
+  }
+
+  // Calculate scores and prepare the final stats array
+  const statsList = Object.values(memberStats).map((stats) => {
+    // Score = participation count + correct predictions
+    const score = stats.participation_count + stats.correct_predictions;
+
+    return {
+      member_name: stats.member_name,
+      participation_count: stats.participation_count,
+      correct_predictions: stats.correct_predictions,
+      score,
+    };
+  });
+
+  // Sort by score in descending order
+  const sortedStats = statsList.sort((a, b) => b.score - a.score);
+
+  // Add ranking information with proper tie handling
+  const statsWithRank: ParticipantStats[] = [];
+
+  // 동점자 처리를 위한 변수들
+  let currentRank = 1;
+  let previousScore = -1;
+  let sameRankCount = 0;
+
+  // 각 참가자에 대한 랭킹 계산
+  sortedStats.forEach((stat, index) => {
+    // 처음이거나 이전 참가자와 점수가 다른 경우
+    if (index === 0 || stat.score !== previousScore) {
+      currentRank = index + 1;
+      sameRankCount = 0;
+    } else {
+      // 이전 참가자와 점수가 같은 경우 (동점)
+      sameRankCount++;
+    }
+
+    // 랭킹 정보 추가
+    statsWithRank.push({
+      ...stat,
+      rank: currentRank,
+    });
+
+    // 현재 점수 저장
+    previousScore = stat.score;
+  });
+
+  // Save the statistics to the poll document
+  await updateDoc(pollRef, {
+    participant_stats: statsWithRank,
+  });
+
+  return statsWithRank;
+};
+
+// Get participant statistics for a poll
+export const getParticipantStats = async (
+  pollId: string,
+): Promise<ParticipantStats[] | null> => {
+  const pollRef = doc(db, POLLS_COLLECTION, pollId);
+  const pollDoc = await getDoc(pollRef);
+
+  if (!pollDoc.exists()) return null;
+
+  const data = pollDoc.data();
+  return data.participant_stats || null;
+};
+
+// Subscribe to participant statistics
+export const subscribeToParticipantStats = (
+  pollId: string,
+  onData: (stats: ParticipantStats[] | null) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe => {
+  const pollRef = doc(db, POLLS_COLLECTION, pollId);
+
+  return onSnapshot(
+    pollRef,
+    (docSnapshot) => {
+      try {
+        if (!docSnapshot.exists()) {
+          onData(null);
+          return;
+        }
+
+        const data = docSnapshot.data();
+        onData(data.participant_stats || null);
+      } catch (error) {
+        console.error("Error in participant stats subscription:", error);
+        if (onError) onError(error as Error);
+      }
+    },
+    (error) => {
+      console.error("Participant stats subscription error:", error);
       if (onError) onError(error);
     },
   );

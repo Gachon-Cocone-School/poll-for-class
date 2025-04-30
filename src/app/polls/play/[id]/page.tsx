@@ -5,7 +5,13 @@ import { useParams, useRouter } from "next/navigation";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import Layout from "~/components/Layout";
 import { api } from "~/trpc/react";
-import { Question, Member, QuestionResult, Answer } from "~/lib/types";
+import {
+  Question,
+  Member,
+  QuestionResult,
+  Answer,
+  ParticipantStats,
+} from "~/lib/types";
 import {
   usePoll,
   useActiveQuestion,
@@ -58,8 +64,17 @@ export default function PollPlayPage() {
 
   // Mutation 설정
   const updateActiveMutation = api.poll.updateActiveQuestion.useMutation();
-  const calculateResultsMutation = api.poll.calculatePollResults.useMutation();
+  const calculateResultsMutation = api.poll.calculatePollResults.useMutation({
+    onSuccess: (data, variables) => {
+      // Poll 결과 계산이 완료되면 참가자 통계 계산
+      calculateParticipantStatsMutation.mutate({
+        pollId: variables.pollId,
+      });
+    },
+  });
   const clearResultsMutation = api.poll.clearPollResults.useMutation();
+  const calculateParticipantStatsMutation =
+    api.poll.calculateParticipantStats.useMutation();
 
   // Sort questions when they change
   useEffect(() => {
@@ -118,11 +133,13 @@ export default function PollPlayPage() {
     const currentQuestion = sortedQuestions[currentQuestionIndex];
     if (!currentQuestion?.id) return;
 
+    // 결과 계산 - onSuccess 콜백에서 참가자 통계도 계산함
     calculateResultsMutation.mutate({
       pollId,
       questionId: currentQuestion.id,
     });
 
+    // 활성 질문 상태 업데이트
     updateActiveMutation.mutate({ pollId, questionId: null });
   }, [
     pollId,

@@ -188,4 +188,27 @@ export const pollRouter = createTRPCRouter({
         input.questionId,
       );
     }),
+
+  calculateParticipantStats: publicProcedure
+    .input(
+      z.object({
+        pollId: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const stats = await pollService.calculateAndSaveParticipantStats(
+        input.pollId,
+      );
+      return { success: true, stats };
+    }),
+
+  getParticipantStats: publicProcedure
+    .input(
+      z.object({
+        pollId: z.string(),
+      }),
+    )
+    .query(async ({ input }) => {
+      return await pollService.getParticipantStats(input.pollId);
+    }),
 });
