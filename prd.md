@@ -179,7 +179,7 @@ onSnapshot, useState 를 이용해서 firestore database 와 실시간 연동하
 # 투표 참가자 통계 집계
 
 - poll end 버튼을 누르면 아래처럼 참가자의 통계를 집계해줘.
-  - 통계 단위는 poll 단위임.  따라서 firestore database 에 polls 컬렉션에 저장해야함.
+  - 통계 단위는 poll 단위임. 따라서 firestore database 에 polls 컬렉션에 저장해야함.
   - 통계는 아래와 같은 구조임.
     - member_name
     - 투표참가횟수
@@ -191,5 +191,10 @@ onSnapshot, useState 를 이용해서 firestore database 와 실시간 연동하
 
 - 화면에 현재 로그인되어 있는 member_name 을 보여준다.
 - firestore에 저장된 poll 에 participants_stat 필드가 존재할 경우 해당되는 나의 정보를 찾아서 보여준다.
-  - 현재 나의 점수 : score 값 * 10 을 해서 보여준다.
+  - 현재 나의 점수 : score 값 \* 10 을 해서 보여준다.
   - 현재 나의 랭킹 : rank / total # of participant_stats
+
+# 리더보드 화면 개선
+
+- 리더보드는 rank, name, score 만 보여준다.
+- privacy 를 위해 1~5위까지만 보여주고 나머지는 scroll 해야 보이게 해준다.

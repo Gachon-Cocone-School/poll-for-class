@@ -36,9 +36,57 @@ const StatsModal: React.FC<StatsModalProps> = ({
   // 전체 참가자 수 계산
   const totalParticipants = stats.length;
 
+  // Get top participants for the podium (up to 3)
+  const top3 = stats.slice(0, 3);
+
+  // Determine if there are any ties in the top 3
+  const hasTies =
+    top3.length > 1 &&
+    ((top3.length >= 2 && top3[0].rank === top3[1].rank) ||
+      (top3.length === 3 &&
+        (top3[1].rank === top3[2].rank || top3[0].rank === top3[2].rank)));
+
+  // Determine heights based on ranks
+  // If participants have tied ranks, they should have podiums of same height
+  const getPodiumHeight = (participant: ParticipantStats, index: number) => {
+    // Default heights for 1st, 2nd, 3rd places
+    const defaultHeights = {
+      podium: ["h-28", "h-24", "h-20"],
+      base: ["h-24", "h-16", "h-10"],
+    };
+
+    // Check if this participant is tied with anyone else in top 3
+    const isTiedWithPrevious =
+      index > 0 && participant.rank === top3[index - 1].rank;
+    const isTiedWithFirst = index > 0 && participant.rank === top3[0].rank;
+
+    // If tied with the previous position, use the same height
+    if (isTiedWithPrevious) {
+      const prevIndex = index - 1;
+      return {
+        podium: defaultHeights.podium[prevIndex],
+        base: defaultHeights.base[prevIndex],
+      };
+    }
+
+    // If tied with first position but not adjacent, use first place height
+    if (isTiedWithFirst) {
+      return {
+        podium: defaultHeights.podium[0],
+        base: defaultHeights.base[0],
+      };
+    }
+
+    // Otherwise use default height for this position
+    return {
+      podium: defaultHeights.podium[index],
+      base: defaultHeights.base[index],
+    };
+  };
+
   return (
     <div className="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black p-4">
-      <div className="max-h-[80vh] w-full max-w-3xl overflow-auto rounded-lg bg-white p-6 shadow-xl">
+      <div className="max-h-[90vh] w-full max-w-3xl overflow-auto rounded-lg bg-white p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-bold">
             Participant Statistics: {pollName}
@@ -70,57 +118,191 @@ const StatsModal: React.FC<StatsModalProps> = ({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase">
-                    Rank
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase">
-                    Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase">
-                    Participation
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase">
-                    Correct Predictions
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase">
-                    Score
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 bg-white">
-                {stats.map((stat, index) => {
-                  // 이전 참가자와 순위가 같은지 확인 (동률 강조)
-                  const isTied =
-                    index > 0 && stat.rank === stats[index - 1].rank;
+            {/* Leaderboard header */}
+            <h3 className="mb-4 text-lg font-semibold">Leaderboard</h3>
 
-                  return (
-                    <tr
-                      key={index}
-                      className={`${index % 2 === 0 ? "bg-white" : "bg-gray-50"} ${isTied ? "bg-blue-50 font-medium" : ""}`}
-                    >
-                      <td className="px-6 py-4 text-sm font-medium whitespace-nowrap text-gray-900">
-                        {`${stat.rank}/${totalParticipants}`}
-                      </td>
-                      <td className="px-6 py-4 text-sm whitespace-nowrap text-gray-500">
-                        {stat.member_name}
-                      </td>
-                      <td className="px-6 py-4 text-sm whitespace-nowrap text-gray-500">
-                        {stat.participation_count}
-                      </td>
-                      <td className="px-6 py-4 text-sm whitespace-nowrap text-gray-500">
-                        {stat.correct_predictions}
-                      </td>
-                      <td className="px-6 py-4 text-sm whitespace-nowrap text-gray-500">
-                        {stat.score}
-                      </td>
+            {/* Olympic Podium Style for Top 3 */}
+            {stats.length >= 1 && (
+              <div className="mb-8 flex flex-col items-center">
+                <div className="mb-12 flex w-full items-end justify-center">
+                  {/* Second Place - Left */}
+                  {stats.length >= 2 && (
+                    <div className="mx-4 flex flex-col items-center">
+                      <div className="mb-2 flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-4 border-gray-300 bg-gray-100">
+                        <span className="text-3xl font-bold text-gray-600">
+                          {top3[1].rank}
+                        </span>
+                      </div>
+                      <div
+                        className={`w-24 ${getPodiumHeight(top3[1], 1).podium} flex flex-col items-center justify-center rounded-t-lg bg-gray-300`}
+                      >
+                        <p className="max-w-[90px] truncate text-sm font-bold">
+                          {top3[1]?.member_name || "N/A"}
+                        </p>
+                        <p className="mt-1 text-xs">
+                          {top3[1]?.score || 0} pts
+                        </p>
+                      </div>
+                      <div
+                        className={`w-24 bg-gray-300 ${
+                          getPodiumHeight(top3[1], 1).base
+                        }`}
+                      ></div>
+                    </div>
+                  )}
+
+                  {/* First Place - Center */}
+                  {stats.length >= 1 && (
+                    <div className="mx-4 -mt-6 flex flex-col items-center">
+                      <div className="mb-2 flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-yellow-500 bg-yellow-100">
+                        <span className="text-4xl font-bold text-yellow-600">
+                          {top3[0].rank}
+                        </span>
+                      </div>
+                      <div
+                        className={`w-28 ${getPodiumHeight(top3[0], 0).podium} flex flex-col items-center justify-center rounded-t-lg bg-yellow-500`}
+                      >
+                        <p className="max-w-[100px] truncate text-sm font-bold text-white">
+                          {top3[0]?.member_name || "N/A"}
+                        </p>
+                        <p className="mt-1 text-xs text-white">
+                          {top3[0]?.score || 0} pts
+                        </p>
+                      </div>
+                      <div
+                        className={`w-28 bg-yellow-500 ${
+                          getPodiumHeight(top3[0], 0).base
+                        }`}
+                      ></div>
+                    </div>
+                  )}
+
+                  {/* Third Place - Right */}
+                  {stats.length >= 3 && (
+                    <div className="mx-4 flex flex-col items-center">
+                      <div className="mb-2 flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-4 border-amber-700 bg-amber-100">
+                        <span className="text-2xl font-bold text-amber-800">
+                          {top3[2].rank}
+                        </span>
+                      </div>
+                      <div
+                        className={`w-20 ${getPodiumHeight(top3[2], 2).podium} flex flex-col items-center justify-center rounded-t-lg bg-amber-700`}
+                      >
+                        <p className="max-w-[80px] truncate text-sm font-bold text-white">
+                          {top3[2]?.member_name || "N/A"}
+                        </p>
+                        <p className="mt-1 text-xs text-white">
+                          {top3[2]?.score || 0} pts
+                        </p>
+                      </div>
+                      <div
+                        className={`w-20 bg-amber-700 ${
+                          getPodiumHeight(top3[2], 2).base
+                        }`}
+                      ></div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Top 4-5 participants */}
+            {stats.length > 3 && (
+              <div className="mb-4 rounded-t-lg bg-blue-50 p-2">
+                <table className="min-w-full">
+                  <thead className="border-b border-blue-200 bg-blue-100">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-blue-800 uppercase">
+                        Rank
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-blue-800 uppercase">
+                        Name
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-blue-800 uppercase">
+                        Score
+                      </th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody className="divide-y divide-blue-100 bg-blue-50">
+                    {stats.slice(3, 5).map((stat, index) => {
+                      // 이전 참가자와 순위가 같은지 확인 (동률 강조)
+                      const isTied =
+                        index > 0 && stat.rank === stats[index + 3 - 1].rank;
+
+                      return (
+                        <tr
+                          key={index + 3}
+                          className={isTied ? "bg-blue-100 font-medium" : ""}
+                        >
+                          <td className="px-6 py-4 text-sm whitespace-nowrap">
+                            {stat.rank}
+                          </td>
+                          <td className="px-6 py-4 text-sm whitespace-nowrap">
+                            {stat.member_name}
+                          </td>
+                          <td className="px-6 py-4 text-sm whitespace-nowrap">
+                            {stat.score}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Other participants - scrollable section */}
+            {stats.length > 5 && (
+              <>
+                <h4 className="mb-2 text-sm text-gray-500">
+                  Other Participants
+                </h4>
+                <div className="max-h-[200px] overflow-y-auto rounded-b-lg border border-gray-200">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="sticky top-0 bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase">
+                          Rank
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase">
+                          Name
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase">
+                          Score
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 bg-white">
+                      {stats.slice(5).map((stat, index) => {
+                        // 이전 참가자와 순위가 같은지 확인 (동률 강조)
+                        const isTied =
+                          index + 5 > 0 &&
+                          stat.rank === stats[index + 5 - 1].rank;
+
+                        return (
+                          <tr
+                            key={index + 5}
+                            className={`${
+                              index % 2 === 0 ? "bg-white" : "bg-gray-50"
+                            } ${isTied ? "bg-gray-100 font-medium" : ""}`}
+                          >
+                            <td className="px-6 py-4 text-sm whitespace-nowrap">
+                              {stat.rank}
+                            </td>
+                            <td className="px-6 py-4 text-sm whitespace-nowrap">
+                              {stat.member_name}
+                            </td>
+                            <td className="px-6 py-4 text-sm whitespace-nowrap">
+                              {stat.score}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
