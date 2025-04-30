@@ -7,6 +7,7 @@ import { api } from "~/trpc/react";
 import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { useGroup } from "~/hooks/useGroups";
 import { useGroupMembers } from "~/hooks/useGroups";
+import strings, { formatString } from "~/lib/strings";
 
 export default function EditGroupPage() {
   const router = useRouter();
@@ -70,7 +71,7 @@ export default function EditGroupPage() {
   useEffect(() => {
     if (groupError) {
       console.error("Error loading group:", groupError);
-      alert(`Failed to load group: ${groupError.message}`);
+      alert(formatString(strings.errors.loadingError, groupError.message));
       router.push("/groups");
     }
   }, [groupError, router]);
@@ -102,9 +103,7 @@ export default function EditGroupPage() {
       }
     } catch (error) {
       console.error("Error processing batch:", error);
-      alert(
-        "Failed to process batch text. Please try again or input members manually.",
-      );
+      alert(strings.errors.submissionError);
     } finally {
       setIsProcessingBatch(false);
     }
@@ -189,7 +188,7 @@ export default function EditGroupPage() {
       router.push("/groups");
     } catch (error) {
       console.error("Error updating group:", error);
-      alert("Failed to update group. Please try again.");
+      alert(formatString(strings.errors.submissionError, error));
     } finally {
       setIsSubmitting(false);
     }
@@ -214,15 +213,12 @@ export default function EditGroupPage() {
     return (
       <Layout>
         <div className="mx-auto max-w-md rounded-md bg-yellow-50 p-4">
-          <p className="text-yellow-700">
-            Group not found or still loading. If this persists, please try
-            again.
-          </p>
+          <p className="text-yellow-700">{strings.group.notFound}</p>
           <button
             onClick={() => router.push("/groups")}
             className="mt-4 rounded-md bg-gray-200 px-4 py-2 text-gray-700 hover:bg-gray-300"
           >
-            Back to Groups
+            {strings.common.back}
           </button>
         </div>
       </Layout>
@@ -232,12 +228,12 @@ export default function EditGroupPage() {
   return (
     <Layout>
       <div className="mb-8 flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Edit Group</h1>
+        <h1 className="text-3xl font-bold">{strings.group.edit}</h1>
         <button
           onClick={() => router.back()}
           className="rounded-md bg-gray-200 px-4 py-2 text-gray-700 hover:bg-gray-300"
         >
-          Back
+          {strings.common.back}
         </button>
       </div>
 
@@ -248,7 +244,7 @@ export default function EditGroupPage() {
               htmlFor="group_name"
               className="mb-2 block font-medium text-gray-700"
             >
-              Group Name
+              {strings.group.groupName}
             </label>
             <input
               type="text"
@@ -266,7 +262,7 @@ export default function EditGroupPage() {
               htmlFor="group_description"
               className="mb-2 block font-medium text-gray-700"
             >
-              Description
+              {strings.group.groupDescription}
             </label>
             <textarea
               id="group_description"
@@ -285,11 +281,10 @@ export default function EditGroupPage() {
                 htmlFor="batch_members"
                 className="mb-2 block font-medium text-gray-700"
               >
-                Batch Member Input
+                {strings.group.batchUpdate}
               </label>
               <p className="mb-2 text-sm text-gray-500">
-                Paste member information in any format. The system will
-                automatically extract names and IDs.
+                {strings.group.batchUpdateDescription}
               </p>
             </div>
             <textarea
@@ -307,21 +302,25 @@ export default function EditGroupPage() {
                 onClick={handleProcessBatch}
                 className="rounded-md bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:opacity-50"
               >
-                {isProcessingBatch ? "Processing..." : "Process Batch"}
+                {isProcessingBatch
+                  ? strings.group.processing
+                  : strings.common.process}
               </button>
             </div>
           </div>
 
           <div className="mb-6">
             <div className="mb-2 flex items-center justify-between">
-              <h3 className="font-medium text-gray-700">Members</h3>
+              <h3 className="font-medium text-gray-700">
+                {strings.group.members}
+              </h3>
               <button
                 type="button"
                 onClick={addMemberField}
                 className="flex items-center rounded bg-green-100 px-3 py-1 text-sm text-green-700 hover:bg-green-200"
               >
                 <PlusIcon className="mr-1 h-4 w-4" />
-                Add Member
+                {strings.group.addMember}
               </button>
             </div>
 
@@ -332,7 +331,7 @@ export default function EditGroupPage() {
               >
                 <div className="flex justify-between">
                   <h4 className="mb-2 text-sm font-medium text-gray-500">
-                    Member #{index + 1}
+                    {strings.group.member} #{index + 1}
                   </h4>
                   <button
                     type="button"
@@ -340,7 +339,7 @@ export default function EditGroupPage() {
                     className="flex items-center rounded bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200"
                   >
                     <TrashIcon className="mr-1 h-3 w-3" />
-                    Remove
+                    {strings.common.remove}
                   </button>
                 </div>
 
@@ -350,7 +349,7 @@ export default function EditGroupPage() {
                       htmlFor={`member_name_${index}`}
                       className="mb-1 block text-sm font-medium text-gray-700"
                     >
-                      Name
+                      {strings.group.memberName}
                     </label>
                     <input
                       type="text"
@@ -366,7 +365,7 @@ export default function EditGroupPage() {
                       htmlFor={`member_no_${index}`}
                       className="mb-1 block text-sm font-medium text-gray-700"
                     >
-                      Member ID/Number
+                      {strings.group.memberNo}
                     </label>
                     <input
                       type="text"
@@ -388,7 +387,7 @@ export default function EditGroupPage() {
               disabled={isSubmitting}
               className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {isSubmitting ? "Updating..." : "Update Group"}
+              {isSubmitting ? strings.group.updating : strings.group.edit}
             </button>
           </div>
         </form>

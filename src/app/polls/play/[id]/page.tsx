@@ -21,6 +21,7 @@ import {
 import { useGroupMembers } from "~/hooks/useGroups";
 import { QRCodeSVG } from "qrcode.react";
 import { env } from "~/env";
+import strings from "~/lib/strings";
 
 export default function PollPlayPage() {
   const params = useParams();
@@ -203,13 +204,15 @@ export default function PollPlayPage() {
     <Layout>
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-bold">
-          {!poll ? "Loading..." : `Playing: ${poll.poll_name}`}
+          {!poll
+            ? strings.common.loading
+            : `${strings.poll.playing}: ${poll.poll_name}`}
         </h1>
         <button
           onClick={() => router.back()}
           className="rounded-md bg-gray-200 px-4 py-2 hover:bg-gray-300"
         >
-          Back
+          {strings.common.back}
         </button>
       </div>
 
@@ -265,7 +268,7 @@ export default function PollPlayPage() {
                       : "bg-blue-600 text-white hover:bg-blue-700"
                   }`}
                 >
-                  Poll Start
+                  {strings.poll.start}
                 </button>
                 <button
                   onClick={handlePollEnd}
@@ -276,7 +279,7 @@ export default function PollPlayPage() {
                       : "bg-blue-600 text-white hover:bg-blue-700"
                   }`}
                 >
-                  Poll End
+                  {strings.poll.end}
                 </button>
               </div>
             </div>
@@ -315,7 +318,7 @@ export default function PollPlayPage() {
                               />
                             </div>
                             <span className="ml-2 w-24 text-sm">
-                              {votes} votes ({percentage}%)
+                              {votes} {strings.poll.votes} ({percentage}%)
                             </span>
                           </div>
                         </div>
@@ -329,7 +332,7 @@ export default function PollPlayPage() {
               {isPollActive && (
                 <div className="mt-8 flex flex-col items-center">
                   <h3 className="mb-3 text-center text-sm font-medium text-gray-600">
-                    Scan to answer the poll
+                    {strings.poll.scanToAnswer}
                   </h3>
                   <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
                     <QRCodeSVG value={qrCodeUrl} size={150} />
@@ -343,7 +346,7 @@ export default function PollPlayPage() {
           {/* Right Panel - Members - Full height */}
           <div className="flex h-full flex-col rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
             <h2 className="mb-4 text-lg font-semibold">
-              Group Members ({sortedMembers.length})
+              {strings.group.members} ({sortedMembers.length})
             </h2>
 
             <div className="grid flex-grow grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
@@ -361,13 +364,13 @@ export default function PollPlayPage() {
                           : "border-gray-300 bg-gray-50"
                       }`}
                     >
-                      {member.member_name || "Unnamed"}
+                      {member.member_name || strings.common.unnamed}
                     </div>
                   );
                 })
               ) : (
                 <div className="col-span-full text-center text-gray-500">
-                  No members found in this group
+                  {strings.group.noMembers}
                 </div>
               )}
             </div>
@@ -376,7 +379,7 @@ export default function PollPlayPage() {
       ) : (
         <div className="rounded-md bg-yellow-50 p-4">
           <div className="text-sm text-yellow-700">
-            No questions found for this poll.
+            {strings.poll.noQuestions}
           </div>
         </div>
       )}

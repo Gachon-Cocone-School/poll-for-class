@@ -21,6 +21,8 @@ import {
   useActiveQuestion,
   useQuestion,
 } from "../../../../hooks/usePolls";
+import { strings, formatString } from "../../../../lib/strings";
+import { subscribeToParticipantStats } from "../../../../lib/pollService";
 
 // Constants for Firebase collections
 const POLLS_COLLECTION = "polls";
@@ -38,10 +40,8 @@ const MemberStats = ({
   pollId: string;
 }) => {
   const [memberStats, setMemberStats] = useState<ParticipantStats | null>(null);
-  const [totalParticipants, setTotalParticipants] = useState<number>(0);
+  const [totalParticipants, setTotalParticipants] = useState(0);
   const [loading, setLoading] = useState(true);
-
-  // 이전 상태 값을 참조하기 위한 ref
   const prevStatsRef = useRef<ParticipantStats | null>(null);
 
   useEffect(() => {
@@ -51,49 +51,33 @@ const MemberStats = ({
     setLoading(true);
 
     // Set up real-time listener for the poll document
-    const pollRef = doc(db, POLLS_COLLECTION, pollId);
+    const unsubscribe = subscribeToParticipantStats(
+      pollId,
+      (participantStats) => {
+        if (participantStats && participantStats.length > 0) {
+          const stats = participantStats.find(
+            (stat) => stat.member_name === memberName,
+          );
 
-    // 실시간 업데이트를 위한 향상된 옵션
-    const unsubscribe = onSnapshot(
-      pollRef,
-      { includeMetadataChanges: false }, // 서버 데이터만 처리
-      (snapshot) => {
-        if (snapshot.exists()) {
-          const pollData = snapshot.data();
-          const participantStats = pollData.participant_stats;
+          // 총 참가자 수 설정
+          setTotalParticipants(participantStats.length);
 
-          if (participantStats && Array.isArray(participantStats)) {
-            // Find the stats for the current logged-in member
-            const stats = participantStats.find(
-              (stat) => stat.member_name === memberName,
-            );
-
-            // 총 참가자 수 설정
-            setTotalParticipants(participantStats.length);
-
-            // 상태 변경이 있을 때만 업데이트 (불필요한 리렌더링 방지)
-            if (stats) {
-              if (
-                !prevStatsRef.current ||
-                prevStatsRef.current.score !== stats.score ||
-                prevStatsRef.current.rank !== stats.rank
-              ) {
-                console.log(
-                  `Stats updated: Score=${stats.score}, Rank=${stats.rank}`,
-                );
-                setMemberStats(stats);
-                prevStatsRef.current = stats;
-              }
-            } else {
-              if (prevStatsRef.current !== null) {
-                setMemberStats(null);
-                prevStatsRef.current = null;
-              }
+          // 상태 변경이 있을 때만 업데이트 (불필요한 리렌더링 방지)
+          if (stats) {
+            if (
+              !prevStatsRef.current ||
+              prevStatsRef.current.score !== stats.score ||
+              prevStatsRef.current.rank !== stats.rank
+            ) {
+              console.log(
+                `Stats updated: Score=${stats.score}, Rank=${stats.rank}`,
+              );
+              setMemberStats(stats);
+              prevStatsRef.current = stats;
             }
           } else {
             if (prevStatsRef.current !== null) {
               setMemberStats(null);
-              setTotalParticipants(0);
               prevStatsRef.current = null;
             }
           }
@@ -128,33 +112,40 @@ const MemberStats = ({
       <div className="flex flex-col md:flex-row md:items-center md:justify-between">
         <div>
           <h3 className="font-medium text-gray-800">
-            참가자:{" "}
+            {strings.stats.participant}:{" "}
             <span className="font-bold text-blue-700">{memberName}</span>
           </h3>
         </div>
 
         {loading ? (
           <div className="mt-2 text-sm text-gray-500 md:mt-0">
-            통계 정보를 불러오는 중...
+            {strings.stats.loadingStats}
           </div>
         ) : memberStats ? (
           <div className="mt-2 flex flex-col md:mt-0">
             <div className="mb-1 text-sm text-gray-700">
-              <span className="font-medium">점수:</span>{" "}
+              <span className="font-medium">{strings.stats.score}:</span>{" "}
               <span className="font-bold text-green-600">
-                {memberStats.score * 10}점
+                {formatString(
+                  strings.stats.scoreDisplay,
+                  memberStats.score * 10,
+                )}
               </span>
             </div>
             <div className="text-sm text-gray-700">
-              <span className="font-medium">랭킹:</span>{" "}
+              <span className="font-medium">{strings.stats.rank}:</span>{" "}
               <span className="font-bold text-purple-600">
-                {memberStats.rank} / {totalParticipants}
+                {formatString(
+                  strings.stats.rankingDisplay,
+                  memberStats.rank,
+                  totalParticipants,
+                )}
               </span>
             </div>
           </div>
         ) : (
           <div className="mt-2 text-sm text-gray-500 md:mt-0">
-            아직 통계 정보가 없습니다.
+            {strings.stats.noStatsAvailable}
           </div>
         )}
       </div>
@@ -440,10 +431,10 @@ const LoginForm = ({
     try {
       const success = await onLogin(name, no);
       if (!success) {
-        setError("You are not a member of this group.");
+        setError(strings.auth.notAMember);
       }
     } catch (err) {
-      setError("Login failed. Please try again.");
+      setError(strings.auth.loginError);
       console.error("Login error:", err);
     } finally {
       setIsLoading(false);
@@ -452,7 +443,9 @@ const LoginForm = ({
 
   return (
     <div className="mx-auto mt-10 max-w-md rounded-lg bg-white p-6 shadow-lg">
-      <h2 className="mb-6 text-center text-2xl font-bold">Member Login</h2>
+      <h2 className="mb-6 text-center text-2xl font-bold">
+        {strings.auth.memberLogin}
+      </h2>
       <form onSubmit={handleSubmit}>
         {error && (
           <div className="mb-4 rounded bg-red-100 p-2 text-red-700">
@@ -460,7 +453,9 @@ const LoginForm = ({
           </div>
         )}
         <div className="mb-4">
-          <label className="mb-1 block text-sm font-medium">Name</label>
+          <label className="mb-1 block text-sm font-medium">
+            {strings.auth.name}
+          </label>
           <input
             type="text"
             value={name}
@@ -471,7 +466,7 @@ const LoginForm = ({
         </div>
         <div className="mb-6">
           <label className="mb-1 block text-sm font-medium">
-            Member Number
+            {strings.auth.memberNumber}
           </label>
           <input
             type="text"
@@ -486,7 +481,7 @@ const LoginForm = ({
           disabled={isLoading}
           className="w-full rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:bg-blue-300"
         >
-          {isLoading ? "Logging in..." : "Login"}
+          {isLoading ? strings.common.loggingIn : strings.common.login}
         </button>
       </form>
     </div>
@@ -524,9 +519,7 @@ const QuestionForm = ({
 
     // Check if this is still the active question
     if (!isActiveQuestion) {
-      setError(
-        "This question is no longer active. Your answer cannot be submitted.",
-      );
+      setError(strings.poll.questionNoLongerActive);
       return;
     }
 
@@ -537,7 +530,7 @@ const QuestionForm = ({
       setIsSubmitted(true);
     } catch (err) {
       console.error("Error submitting answer:", err);
-      setError("Failed to submit your answer. Please try again.");
+      setError(strings.poll.submitAnswerError);
     } finally {
       setIsSubmitting(false);
     }
@@ -549,12 +542,8 @@ const QuestionForm = ({
 
       {showWarning && (
         <div className="mb-4 rounded border border-amber-300 bg-amber-100 p-3 text-amber-700">
-          <p className="font-medium">
-            Warning: This question is no longer active.
-          </p>
-          <p>
-            You're viewing a previous question. Your answer cannot be submitted.
-          </p>
+          <p className="font-medium">{strings.poll.warning}</p>
+          <p>{strings.poll.previousQuestionWarning}</p>
         </div>
       )}
 
@@ -593,10 +582,10 @@ const QuestionForm = ({
           className="rounded-md bg-blue-600 px-6 py-2 text-white hover:bg-blue-700 disabled:bg-blue-300"
         >
           {isSubmitting
-            ? "Submitting..."
+            ? strings.common.submitting
             : isSubmitted
-              ? "Submit Again"
-              : "Submit"}
+              ? strings.common.submitAgain
+              : strings.common.submit}
         </button>
       </form>
     </div>
@@ -655,7 +644,7 @@ export default function PollAnswerPage() {
   // Set error from poll error if any
   useEffect(() => {
     if (pollError) {
-      setError(`Failed to load poll data: ${pollError.message}`);
+      setError(formatString(strings.poll.loadError, pollError.message));
     }
   }, [pollError]);
 
@@ -868,9 +857,9 @@ export default function PollAnswerPage() {
       return (
         <div className="mx-auto mt-10 max-w-md rounded-lg bg-white p-6 shadow-lg">
           <h2 className="mb-4 text-center text-2xl font-bold">
-            Poll Not Found
+            {strings.poll.notFound}
           </h2>
-          <p className="text-center">The requested poll could not be found.</p>
+          <p className="text-center">{strings.poll.notFoundDescription}</p>
         </div>
       );
     }
@@ -879,10 +868,10 @@ export default function PollAnswerPage() {
       return (
         <div className="mx-auto mt-10 max-w-md rounded-lg bg-white p-6 shadow-lg">
           <h2 className="mb-4 text-center text-2xl font-bold">
-            No Poll Available
+            {strings.poll.noActiveQuestion}
           </h2>
           <p className="text-center">
-            There is currently no active poll question.
+            {strings.poll.noActiveQuestionDescription}
           </p>
         </div>
       );
@@ -892,9 +881,11 @@ export default function PollAnswerPage() {
       return (
         <div className="mx-auto mt-10 max-w-md rounded-lg bg-white p-6 shadow-lg">
           <h2 className="mb-4 text-center text-2xl font-bold">
-            Question Not Found
+            {strings.poll.questionNotFound}
           </h2>
-          <p className="text-center">The active question could not be found.</p>
+          <p className="text-center">
+            {strings.poll.questionNotFoundDescription}
+          </p>
         </div>
       );
     }
@@ -902,13 +893,13 @@ export default function PollAnswerPage() {
     if (!memberRef.current) {
       return (
         <div className="mx-auto mt-10 max-w-md rounded-lg bg-red-100 p-6 text-red-700 shadow-lg">
-          <h2 className="mb-4 text-2xl font-bold">Authentication Error</h2>
-          <p>Please log out and log in again.</p>
+          <h2 className="mb-4 text-2xl font-bold">{strings.auth.authError}</h2>
+          <p>{strings.auth.loginAgain}</p>
           <button
             onClick={logout}
             className="mt-4 rounded-md bg-red-600 px-4 py-2 text-white"
           >
-            Logout
+            {strings.common.logout}
           </button>
         </div>
       );
@@ -922,7 +913,7 @@ export default function PollAnswerPage() {
   if (isLoading && transitionState === "loading") {
     return (
       <div className="flex h-screen items-center justify-center">
-        <div className="text-2xl">Loading...</div>
+        <div className="text-2xl">{strings.common.loading}</div>
       </div>
     );
   }
@@ -930,7 +921,7 @@ export default function PollAnswerPage() {
   if (error) {
     return (
       <div className="mx-auto mt-10 max-w-md rounded-lg bg-red-100 p-6 text-red-700 shadow-lg">
-        <h2 className="mb-4 text-2xl font-bold">Error</h2>
+        <h2 className="mb-4 text-2xl font-bold">{strings.common.error}</h2>
         <p>{error}</p>
       </div>
     );
@@ -941,14 +932,14 @@ export default function PollAnswerPage() {
       {/* Header with poll info, refresh and logout buttons */}
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-3xl font-bold">
-          {poll ? poll.poll_name : "Poll Answer"}
+          {poll ? poll.poll_name : strings.poll.answer}
         </h1>
         <div className="flex gap-2">
           <button
             onClick={handleRefresh}
             disabled={loadingRefresh || transitionState !== "stable"}
             className="flex items-center rounded-md bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 disabled:bg-blue-300"
-            aria-label="Refresh poll"
+            aria-label={strings.poll.refreshPoll}
           >
             {loadingRefresh || transitionState !== "stable" ? (
               <>
@@ -972,7 +963,7 @@ export default function PollAnswerPage() {
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   ></path>
                 </svg>
-                <span>Refreshing...</span>
+                <span>{strings.common.refreshing}</span>
               </>
             ) : (
               <>
@@ -990,7 +981,7 @@ export default function PollAnswerPage() {
                     d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                   />
                 </svg>
-                <span>Refresh</span>
+                <span>{strings.common.refresh}</span>
               </>
             )}
           </button>
@@ -999,7 +990,7 @@ export default function PollAnswerPage() {
               onClick={logout}
               className="rounded-md bg-gray-600 px-4 py-2 text-white hover:bg-gray-700"
             >
-              Logout
+              {strings.common.logout}
             </button>
           )}
         </div>

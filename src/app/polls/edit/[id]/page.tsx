@@ -7,6 +7,7 @@ import { api } from "~/trpc/react";
 import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { usePoll, usePollQuestions } from "~/hooks/usePolls";
 import { useGroups } from "~/hooks/useGroups";
+import strings, { formatString } from "~/lib/strings";
 
 export default function EditPollPage() {
   const router = useRouter();
@@ -90,7 +91,7 @@ export default function EditPollPage() {
   useEffect(() => {
     if (pollError) {
       console.error("Error loading poll:", pollError);
-      alert(`Failed to load poll: ${pollError.message}`);
+      alert(formatString(strings.errors.loadingError, pollError.message));
       router.push("/");
     }
   }, [pollError, router]);
@@ -230,7 +231,7 @@ export default function EditPollPage() {
       router.push("/");
     } catch (error) {
       console.error("Error updating poll:", error);
-      alert("Failed to update poll. Please try again.");
+      alert(formatString(strings.errors.submissionError, error));
     } finally {
       setIsSubmitting(false);
     }
@@ -252,14 +253,12 @@ export default function EditPollPage() {
     return (
       <Layout>
         <div className="mx-auto max-w-md rounded-md bg-yellow-50 p-4">
-          <p className="text-yellow-700">
-            Poll not found or still loading. If this persists, please try again.
-          </p>
+          <p className="text-yellow-700">{strings.poll.notFound}</p>
           <button
             onClick={() => router.push("/")}
             className="mt-4 rounded-md bg-gray-200 px-4 py-2 text-gray-700 hover:bg-gray-300"
           >
-            Go back to Home
+            {strings.common.back}
           </button>
         </div>
       </Layout>
@@ -269,12 +268,12 @@ export default function EditPollPage() {
   return (
     <Layout>
       <div className="mb-8 flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Edit Poll</h1>
+        <h1 className="text-3xl font-bold">{strings.poll.edit}</h1>
         <button
           onClick={() => router.back()}
           className="rounded-md bg-gray-200 px-4 py-2 text-gray-700 hover:bg-gray-300"
         >
-          Back
+          {strings.common.back}
         </button>
       </div>
 
@@ -285,7 +284,7 @@ export default function EditPollPage() {
               htmlFor="poll_name"
               className="mb-2 block font-medium text-gray-700"
             >
-              Poll Name
+              {strings.poll.pollName}
             </label>
             <input
               type="text"
@@ -303,7 +302,7 @@ export default function EditPollPage() {
               htmlFor="poll_description"
               className="mb-2 block font-medium text-gray-700"
             >
-              Description
+              {strings.poll.pollDescription}
             </label>
             <textarea
               id="poll_description"
@@ -320,7 +319,7 @@ export default function EditPollPage() {
               htmlFor="poll_group_id"
               className="mb-2 block font-medium text-gray-700"
             >
-              Group
+              {strings.group.title}
             </label>
             <select
               id="poll_group_id"
@@ -330,7 +329,7 @@ export default function EditPollPage() {
               className="w-full rounded-md border border-gray-300 p-2 focus:border-blue-500 focus:outline-none"
               required
             >
-              <option value="">Select a group</option>
+              <option value="">{strings.group.select}</option>
               {groups?.map((group) => (
                 <option key={group.id} value={group.id}>
                   {group.group_name}
@@ -341,14 +340,16 @@ export default function EditPollPage() {
 
           <div className="mb-6">
             <div className="mb-2 flex items-center justify-between">
-              <h3 className="font-medium text-gray-700">Questions</h3>
+              <h3 className="font-medium text-gray-700">
+                {strings.question.questions}
+              </h3>
               <button
                 type="button"
                 onClick={addQuestionField}
                 className="flex items-center rounded bg-green-100 px-3 py-1 text-sm text-green-700 hover:bg-green-200"
               >
                 <PlusIcon className="mr-1 h-4 w-4" />
-                Add Question
+                {strings.question.addQuestion}
               </button>
             </div>
 
@@ -359,7 +360,7 @@ export default function EditPollPage() {
               >
                 <div className="flex justify-between">
                   <h4 className="mb-2 text-sm font-medium text-gray-500">
-                    Question #{qIndex + 1}
+                    {strings.question.question} #{qIndex + 1}
                   </h4>
                   <button
                     type="button"
@@ -367,7 +368,7 @@ export default function EditPollPage() {
                     className="flex items-center rounded bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200"
                   >
                     <TrashIcon className="mr-1 h-3 w-3" />
-                    Remove
+                    {strings.question.removeQuestion}
                   </button>
                 </div>
 
@@ -376,7 +377,7 @@ export default function EditPollPage() {
                     htmlFor={`question_${qIndex}`}
                     className="mb-1 block text-sm font-medium text-gray-700"
                   >
-                    Question Text
+                    {strings.question.questionText}
                   </label>
                   <input
                     type="text"
@@ -392,7 +393,7 @@ export default function EditPollPage() {
                 <div className="mb-2">
                   <div className="mb-1 flex items-center justify-between">
                     <label className="text-sm font-medium text-gray-700">
-                      Choices
+                      {strings.question.choices}
                     </label>
                     <button
                       type="button"
@@ -400,7 +401,7 @@ export default function EditPollPage() {
                       className="flex items-center rounded bg-blue-100 px-2 py-1 text-xs text-blue-700 hover:bg-blue-200"
                     >
                       <PlusIcon className="mr-1 h-3 w-3" />
-                      Add Choice
+                      {strings.question.addChoice}
                     </button>
                   </div>
 
@@ -413,7 +414,7 @@ export default function EditPollPage() {
                           handleChoiceChange(qIndex, cIndex, e.target.value)
                         }
                         className="w-full rounded-md border border-gray-300 p-2 text-sm focus:border-blue-500 focus:outline-none"
-                        placeholder={`Choice ${cIndex + 1}`}
+                        placeholder={`${strings.question.choice} ${cIndex + 1}`}
                         required
                       />
                       {q.choices.length > 2 && (
@@ -421,6 +422,7 @@ export default function EditPollPage() {
                           type="button"
                           onClick={() => removeChoiceField(qIndex, cIndex)}
                           className="ml-2 flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-red-600 hover:bg-red-200"
+                          title={strings.question.removeChoice}
                         >
                           <TrashIcon className="h-4 w-4" />
                         </button>
@@ -438,7 +440,7 @@ export default function EditPollPage() {
               disabled={isSubmitting}
               className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {isSubmitting ? "Updating..." : "Update Poll"}
+              {isSubmitting ? strings.poll.updating : strings.poll.update}
             </button>
           </div>
         </form>

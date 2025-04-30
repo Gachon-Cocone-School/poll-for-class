@@ -16,6 +16,7 @@ import {
 import { usePolls } from "~/hooks/usePolls"; // 실시간 구독 훅 사용
 import { useAdminAuth } from "~/hooks/useAdminAuth"; // Admin auth hook 추가
 import { ParticipantStats } from "~/lib/types";
+import strings, { formatString } from "~/lib/strings";
 
 // Stats Modal Component
 interface StatsModalProps {
@@ -89,11 +90,12 @@ const StatsModal: React.FC<StatsModalProps> = ({
       <div className="max-h-[90vh] w-full max-w-3xl overflow-auto rounded-lg bg-white p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-bold">
-            Participant Statistics: {pollName}
+            {formatString(strings.stats.participantStatistics, pollName)}
           </h2>
           <button
             onClick={onClose}
             className="rounded-full p-1 hover:bg-gray-100"
+            aria-label={strings.common.close}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -114,12 +116,14 @@ const StatsModal: React.FC<StatsModalProps> = ({
 
         {stats.length === 0 ? (
           <div className="py-8 text-center text-gray-500">
-            No participant statistics available for this poll.
+            {strings.stats.noStatsAvailable}
           </div>
         ) : (
           <div className="overflow-x-auto">
             {/* Leaderboard header */}
-            <h3 className="mb-4 text-lg font-semibold">Leaderboard</h3>
+            <h3 className="mb-4 text-lg font-semibold">
+              {strings.stats.leaderboard}
+            </h3>
 
             {/* Olympic Podium Style for Top 3 */}
             {stats.length >= 1 && (
@@ -140,7 +144,7 @@ const StatsModal: React.FC<StatsModalProps> = ({
                           {top3[1]?.member_name || "N/A"}
                         </p>
                         <p className="mt-1 text-xs">
-                          {top3[1]?.score || 0} pts
+                          {(top3[1]?.score || 0) * 10} {strings.stats.points}
                         </p>
                       </div>
                       <div
@@ -166,7 +170,7 @@ const StatsModal: React.FC<StatsModalProps> = ({
                           {top3[0]?.member_name || "N/A"}
                         </p>
                         <p className="mt-1 text-xs text-white">
-                          {top3[0]?.score || 0} pts
+                          {(top3[0]?.score || 0) * 10} {strings.stats.points}
                         </p>
                       </div>
                       <div
@@ -192,7 +196,7 @@ const StatsModal: React.FC<StatsModalProps> = ({
                           {top3[2]?.member_name || "N/A"}
                         </p>
                         <p className="mt-1 text-xs text-white">
-                          {top3[2]?.score || 0} pts
+                          {(top3[2]?.score || 0) * 10} {strings.stats.points}
                         </p>
                       </div>
                       <div
@@ -206,25 +210,25 @@ const StatsModal: React.FC<StatsModalProps> = ({
               </div>
             )}
 
-            {/* Top 4-5 participants */}
+            {/* 4등 이상 참가자들 - 하나의 테이블로 표시 */}
             {stats.length > 3 && (
-              <div className="mb-4 rounded-t-lg bg-blue-50 p-2">
-                <table className="min-w-full">
-                  <thead className="border-b border-blue-200 bg-blue-100">
+              <div className="rounded-lg border border-gray-200">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-blue-800 uppercase">
-                        Rank
+                      <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase">
+                        {strings.stats.rank}
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-blue-800 uppercase">
-                        Name
+                      <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase">
+                        {strings.stats.name}
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-blue-800 uppercase">
-                        Score
+                      <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase">
+                        {strings.stats.score}
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-blue-100 bg-blue-50">
-                    {stats.slice(3, 5).map((stat, index) => {
+                  <tbody className="divide-y divide-gray-200 bg-white">
+                    {stats.slice(3).map((stat, index) => {
                       // 이전 참가자와 순위가 같은지 확인 (동률 강조)
                       const isTied =
                         index > 0 && stat.rank === stats[index + 3 - 1].rank;
@@ -232,7 +236,9 @@ const StatsModal: React.FC<StatsModalProps> = ({
                       return (
                         <tr
                           key={index + 3}
-                          className={isTied ? "bg-blue-100 font-medium" : ""}
+                          className={`${
+                            index % 2 === 0 ? "bg-white" : "bg-gray-50"
+                          } ${isTied ? "bg-gray-100 font-medium" : ""}`}
                         >
                           <td className="px-6 py-4 text-sm whitespace-nowrap">
                             {stat.rank}
@@ -241,7 +247,7 @@ const StatsModal: React.FC<StatsModalProps> = ({
                             {stat.member_name}
                           </td>
                           <td className="px-6 py-4 text-sm whitespace-nowrap">
-                            {stat.score}
+                            {stat.score * 10}
                           </td>
                         </tr>
                       );
@@ -249,59 +255,6 @@ const StatsModal: React.FC<StatsModalProps> = ({
                   </tbody>
                 </table>
               </div>
-            )}
-
-            {/* Other participants - scrollable section */}
-            {stats.length > 5 && (
-              <>
-                <h4 className="mb-2 text-sm text-gray-500">
-                  Other Participants
-                </h4>
-                <div className="max-h-[200px] overflow-y-auto rounded-b-lg border border-gray-200">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="sticky top-0 bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase">
-                          Rank
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase">
-                          Name
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase">
-                          Score
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 bg-white">
-                      {stats.slice(5).map((stat, index) => {
-                        // 이전 참가자와 순위가 같은지 확인 (동률 강조)
-                        const isTied =
-                          index + 5 > 0 &&
-                          stat.rank === stats[index + 5 - 1].rank;
-
-                        return (
-                          <tr
-                            key={index + 5}
-                            className={`${
-                              index % 2 === 0 ? "bg-white" : "bg-gray-50"
-                            } ${isTied ? "bg-gray-100 font-medium" : ""}`}
-                          >
-                            <td className="px-6 py-4 text-sm whitespace-nowrap">
-                              {stat.rank}
-                            </td>
-                            <td className="px-6 py-4 text-sm whitespace-nowrap">
-                              {stat.member_name}
-                            </td>
-                            <td className="px-6 py-4 text-sm whitespace-nowrap">
-                              {stat.score}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </>
             )}
           </div>
         )}
@@ -328,7 +281,7 @@ export default function PollsPage() {
   const deleteMutation = api.poll.delete.useMutation({
     onError: (error) => {
       console.error("Error deleting poll:", error);
-      alert(`Failed to delete poll: ${error.message}`);
+      alert(formatString(strings.poll.deleteError, error.message));
       setDeleteId(null);
     },
   });
@@ -357,7 +310,7 @@ export default function PollsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm("Are you sure you want to delete this poll?")) {
+    if (confirm(strings.poll.deleteConfirm)) {
       try {
         setDeleteId(id);
         await deleteMutation.mutateAsync({ id });
@@ -374,20 +327,20 @@ export default function PollsPage() {
   return (
     <Layout>
       <div className="mb-8 flex justify-between">
-        <h1 className="text-3xl font-bold">Polls</h1>
+        <h1 className="text-3xl font-bold">{strings.poll.polls}</h1>
         <div className="flex space-x-2">
           <Link
             href="/groups"
             className="flex items-center rounded-md bg-gray-600 px-4 py-2 text-white hover:bg-gray-700"
           >
-            Groups
+            {strings.group.groups}
           </Link>
           <Link
             href="/polls/create"
             className="flex items-center rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
           >
             <PlusIcon className="mr-2 h-5 w-5" />
-            Add Poll
+            {strings.poll.addPoll}
           </Link>
           {isAuthenticated && (
             <button
@@ -395,7 +348,7 @@ export default function PollsPage() {
               className="flex items-center rounded-md bg-red-600 px-4 py-2 text-white hover:bg-red-700"
             >
               <ArrowLeftOnRectangleIcon className="mr-2 h-5 w-5" />
-              Logout
+              {strings.common.logout}
             </button>
           )}
         </div>
@@ -414,25 +367,25 @@ export default function PollsPage() {
                   scope="col"
                   className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
                 >
-                  Name
+                  {strings.stats.name}
                 </th>
                 <th
                   scope="col"
                   className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
                 >
-                  Description
+                  {strings.poll.pollDescription}
                 </th>
                 <th
                   scope="col"
                   className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
                 >
-                  Group
+                  {strings.group.title}
                 </th>
                 <th
                   scope="col"
                   className="px-6 py-3 text-xs font-medium tracking-wider text-gray-500 uppercase"
                 >
-                  Actions
+                  {strings.common.actions}
                 </th>
               </tr>
             </thead>
@@ -460,7 +413,7 @@ export default function PollsPage() {
                         onClick={() => router.push(`/polls/play/${poll.id}`)}
                         className="rounded bg-green-100 p-1 text-green-600 hover:bg-green-200"
                         disabled={deleteId === poll.id}
-                        title="Play Poll"
+                        title={strings.poll.play}
                       >
                         <PlayIcon className="h-5 w-5" />
                       </button>
@@ -468,7 +421,7 @@ export default function PollsPage() {
                         onClick={() => handleShowStats(poll.id!)}
                         className="rounded bg-indigo-100 p-1 text-indigo-600 hover:bg-indigo-200"
                         disabled={deleteId === poll.id || isLoadingStats}
-                        title="View Statistics"
+                        title={strings.stats.title}
                       >
                         {isLoadingStats && selectedPollId === poll.id ? (
                           <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-indigo-600"></div>
@@ -480,7 +433,7 @@ export default function PollsPage() {
                         onClick={() => router.push(`/polls/edit/${poll.id}`)}
                         className="rounded bg-yellow-100 p-1 text-yellow-600 hover:bg-yellow-200"
                         disabled={deleteId === poll.id}
-                        title="Edit Poll"
+                        title={strings.poll.edit}
                       >
                         <PencilIcon className="h-5 w-5" />
                       </button>
@@ -492,7 +445,7 @@ export default function PollsPage() {
                             : "bg-red-100 text-red-600 hover:bg-red-200"
                         }`}
                         disabled={deleteId === poll.id}
-                        title="Delete Poll"
+                        title={strings.poll.delete}
                       >
                         {deleteId === poll.id ? (
                           <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-red-600"></div>
@@ -511,8 +464,7 @@ export default function PollsPage() {
         <div className="rounded-md bg-yellow-50 p-4">
           <div className="flex">
             <div className="text-sm text-yellow-700">
-              No polls found. Click the &quot;Add Poll&quot; button to create
-              one.
+              {strings.poll.noPollsFound}
             </div>
           </div>
         </div>

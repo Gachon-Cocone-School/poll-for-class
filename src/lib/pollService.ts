@@ -895,8 +895,15 @@ export const calculateAndSaveParticipantStats = async (
     };
   });
 
-  // Sort by score in descending order
-  const sortedStats = statsList.sort((a, b) => b.score - a.score);
+  // 점수 기준으로 정렬하고, 점수가 같으면 이름 기준으로 정렬
+  const sortedStats = statsList.sort((a, b) => {
+    // 점수가 다를 경우 점수 내림차순으로 정렬
+    if (b.score !== a.score) {
+      return b.score - a.score;
+    }
+    // 점수가 같을 경우 이름 오름차순으로 정렬
+    return a.member_name.localeCompare(b.member_name);
+  });
 
   // Add ranking information with proper tie handling
   const statsWithRank: ParticipantStats[] = [];

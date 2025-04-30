@@ -13,6 +13,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { useGroups } from "~/hooks/useGroups";
 import { useAdminAuth } from "~/hooks/useAdminAuth";
+import strings, { formatString } from "~/lib/strings";
 
 export default function GroupsPage() {
   const router = useRouter();
@@ -22,10 +23,16 @@ export default function GroupsPage() {
   // 실시간 Firebase 구독 사용
   const { data: groups, loading: isLoading } = useGroups();
 
-  const deleteMutation = api.group.delete.useMutation();
+  const deleteMutation = api.group.delete.useMutation({
+    onError: (error) => {
+      console.error("Error deleting group:", error);
+      alert(formatString(strings.group.deleteError, error.message));
+      setDeleteId(null);
+    },
+  });
 
   const handleDelete = async (id: string) => {
-    if (confirm("Are you sure you want to delete this group?")) {
+    if (confirm(strings.group.deleteConfirm)) {
       setDeleteId(id);
       await deleteMutation.mutateAsync({ id });
       setDeleteId(null);
@@ -35,20 +42,20 @@ export default function GroupsPage() {
   return (
     <Layout>
       <div className="mb-8 flex justify-between">
-        <h1 className="text-3xl font-bold">Groups</h1>
+        <h1 className="text-3xl font-bold">{strings.group.groups}</h1>
         <div className="flex space-x-2">
           <Link
             href="/"
             className="flex items-center rounded-md bg-gray-600 px-4 py-2 text-white hover:bg-gray-700"
           >
-            Polls
+            {strings.poll.polls}
           </Link>
           <Link
             href="/groups/create"
             className="flex items-center rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
           >
             <PlusIcon className="mr-2 h-5 w-5" />
-            Add Group
+            {strings.group.addGroup}
           </Link>
           {isAuthenticated && (
             <button
@@ -56,7 +63,7 @@ export default function GroupsPage() {
               className="flex items-center rounded-md bg-red-600 px-4 py-2 text-white hover:bg-red-700"
             >
               <ArrowLeftOnRectangleIcon className="mr-2 h-5 w-5" />
-              Logout
+              {strings.common.logout}
             </button>
           )}
         </div>
@@ -75,19 +82,19 @@ export default function GroupsPage() {
                   scope="col"
                   className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
                 >
-                  Name
+                  {strings.stats.name}
                 </th>
                 <th
                   scope="col"
                   className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
                 >
-                  Description
+                  {strings.group.groupDescription}
                 </th>
                 <th
                   scope="col"
                   className="px-6 py-3 text-xs font-medium tracking-wider text-gray-500 uppercase"
                 >
-                  Actions
+                  {strings.common.actions}
                 </th>
               </tr>
             </thead>
@@ -110,6 +117,7 @@ export default function GroupsPage() {
                         onClick={() => router.push(`/groups/edit/${group.id}`)}
                         className="rounded bg-yellow-100 p-1 text-yellow-600 hover:bg-yellow-200"
                         disabled={deleteId === group.id}
+                        title={strings.group.edit}
                       >
                         <PencilIcon className="h-5 w-5" />
                       </button>
@@ -121,6 +129,7 @@ export default function GroupsPage() {
                             : "bg-red-100 text-red-600 hover:bg-red-200"
                         }`}
                         disabled={deleteId === group.id}
+                        title={strings.group.delete}
                       >
                         {deleteId === group.id ? (
                           <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-red-600"></div>
@@ -139,8 +148,7 @@ export default function GroupsPage() {
         <div className="rounded-md bg-yellow-50 p-4">
           <div className="flex">
             <div className="text-sm text-yellow-700">
-              No groups found. Click the &quot;Add Group&quot; button to create
-              one.
+              {strings.group.noGroupsFound}
             </div>
           </div>
         </div>
