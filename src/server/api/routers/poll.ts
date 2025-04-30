@@ -71,8 +71,18 @@ export const pollRouter = createTRPCRouter({
   delete: publicProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input }) => {
-      await pollService.deletePoll(input.id);
-      return { success: true };
+      try {
+        await pollService.deletePoll(input.id);
+        return { success: true };
+      } catch (error) {
+        console.error(
+          `Error in poll.delete mutation for poll ${input.id}:`,
+          error,
+        );
+        throw new Error(
+          `Failed to delete poll: ${error instanceof Error ? error.message : "Unknown error"}`,
+        );
+      }
     }),
 
   getQuestions: publicProcedure

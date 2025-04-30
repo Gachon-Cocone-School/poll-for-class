@@ -143,7 +143,13 @@ export default function PollsPage() {
   // TRPC utils 가져오기
   const utils = api.useContext();
 
-  const deleteMutation = api.poll.delete.useMutation();
+  const deleteMutation = api.poll.delete.useMutation({
+    onError: (error) => {
+      console.error("Error deleting poll:", error);
+      alert(`Failed to delete poll: ${error.message}`);
+      setDeleteId(null);
+    },
+  });
 
   const handleShowStats = async (pollId: string) => {
     try {
@@ -170,9 +176,13 @@ export default function PollsPage() {
 
   const handleDelete = async (id: string) => {
     if (confirm("Are you sure you want to delete this poll?")) {
-      setDeleteId(id);
-      await deleteMutation.mutateAsync({ id });
-      setDeleteId(null);
+      try {
+        setDeleteId(id);
+        await deleteMutation.mutateAsync({ id });
+        setDeleteId(null);
+      } catch (error) {
+        // Error will be handled by the onError callback in the mutation
+      }
     }
   };
 

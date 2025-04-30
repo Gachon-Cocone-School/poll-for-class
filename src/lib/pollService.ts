@@ -211,26 +211,71 @@ export const updatePoll = async (
 
 // Delete a poll and its subcollections (questions)
 export const deletePoll = async (id: string): Promise<void> => {
-  // First, delete all questions in the poll
-  const questionsCol = collection(
-    db,
-    POLLS_COLLECTION,
-    id,
-    QUESTIONS_COLLECTION,
-  );
-  const questionSnapshot = await getDocs(questionsCol);
+  try {
+    // First, delete all questions and their answers
+    const questionsCol = collection(
+      db,
+      POLLS_COLLECTION,
+      id,
+      QUESTIONS_COLLECTION,
+    );
+    const questionSnapshot = await getDocs(questionsCol);
 
-  // Delete each question document
-  const deleteQuestionPromises = questionSnapshot.docs.map(async (doc) => {
-    await deleteDoc(doc.ref);
-  });
+    // For each question, delete its answers before deleting the question itself
+    const deleteQuestionPromises = questionSnapshot.docs.map(
+      async (questionDoc) => {
+        try {
+          // Get all answers for this question
+          const answersCol = collection(
+            db,
+            POLLS_COLLECTION,
+            id,
+            QUESTIONS_COLLECTION,
+            questionDoc.id,
+            ANSWERS_COLLECTION,
+          );
 
-  // Wait for all questions to be deleted
-  await Promise.all(deleteQuestionPromises);
+          const answersSnapshot = await getDocs(answersCol);
 
-  // Then delete the poll document itself
-  const pollRef = doc(db, POLLS_COLLECTION, id);
-  await deleteDoc(pollRef);
+          // Delete each answer document
+          const deleteAnswerPromises = answersSnapshot.docs.map(
+            async (answerDoc) => {
+              try {
+                await deleteDoc(answerDoc.ref);
+              } catch (error) {
+                console.error(`Error deleting answer ${answerDoc.id}:`, error);
+              }
+            },
+          );
+
+          // Wait for all answers to be deleted
+          await Promise.all(deleteAnswerPromises);
+
+          // Then delete the question document
+          await deleteDoc(questionDoc.ref);
+        } catch (error) {
+          console.error(
+            `Error deleting question ${questionDoc.id} and its answers:`,
+            error,
+          );
+        }
+      },
+    );
+
+    // Wait for all questions and their answers to be deleted
+    await Promise.all(deleteQuestionPromises);
+
+    // Finally delete the poll document itself
+    const pollRef = doc(db, POLLS_COLLECTION, id);
+    await deleteDoc(pollRef);
+
+    console.log(
+      `Successfully deleted poll ${id} with all questions and answers`,
+    );
+  } catch (error) {
+    console.error(`Error in deletePoll for poll ${id}:`, error);
+    throw error;
+  }
 };
 
 // Get poll questions
