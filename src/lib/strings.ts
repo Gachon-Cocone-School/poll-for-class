@@ -72,7 +72,7 @@ export const strings = {
     submitAnswerError: "응답을 제출하는 중 오류가 발생했습니다.",
     questionNoLongerActive: "이 질문은 더 이상 활성화되지 않았습니다.",
     noActiveQuestion: "활성화된 질문이 없습니다",
-    noActiveQuestionDescription: "현재 진행 중인 투표 질문이 없습니다.",
+    noActiveQuestionDescription: "현재 진행 중인 투표가 없습니다.",
     questionNotFoundDescription: "요청한 질문을 찾을 수 없습니다.",
     loadError: "투표를 불러오는 중 오류가 발생했습니다: {0}",
     refreshPoll: "투표 새로고침",

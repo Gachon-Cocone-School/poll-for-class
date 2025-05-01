@@ -113,8 +113,8 @@ const MemberStats = ({
       <div className="flex flex-col md:flex-row md:items-center md:justify-between">
         <div>
           <h3 className="font-medium text-gray-800">
-            {strings.stats.participant}:{" "}
-            <span className="font-bold text-blue-700">{memberName}</span>
+            {strings.stats.name}:{" "}
+            <span className="font-bold">{memberName}</span>
           </h3>
         </div>
 
@@ -126,7 +126,7 @@ const MemberStats = ({
           <div className="mt-2 flex flex-col md:mt-0">
             <div className="mb-1 text-sm text-gray-700">
               <span className="font-medium">{strings.stats.score}:</span>{" "}
-              <span className="font-bold text-green-600">
+              <span className="font-bold">
                 {formatString(
                   strings.stats.scoreDisplay,
                   memberStats.score * 10,
@@ -135,7 +135,7 @@ const MemberStats = ({
             </div>
             <div className="text-sm text-gray-700">
               <span className="font-medium">{strings.stats.rank}:</span>{" "}
-              <span className="font-bold text-purple-600">
+              <span className="font-bold">
                 {formatString(
                   strings.stats.rankingDisplay,
                   memberStats.rank,
@@ -567,7 +567,7 @@ const QuestionForm = ({
 
   return (
     <div className="mx-auto mt-10 max-w-2xl rounded-lg bg-white p-6 shadow-lg">
-      <h2 className="mb-6 text-2xl font-bold">{question.question}</h2>
+      <h2 className="mb-6 text-lg font-bold">{question.question}</h2>
 
       {showWarning && (
         <div className="mb-4 rounded border border-amber-300 bg-amber-100 p-3 text-amber-700">
@@ -961,14 +961,7 @@ export default function PollAnswerPage() {
       {/* Header with poll info, refresh and logout buttons */}
       <div className="mb-8 flex items-center justify-between">
         <div className="flex items-center">
-          <Image
-            src="/gcs_logo.png"
-            alt="GCS Logo"
-            width={40}
-            height={40}
-            className="mr-3"
-          />
-          <h1 className="text-3xl font-bold">
+          <h1 className="text-xl font-bold">
             {poll ? poll.poll_name : strings.poll.answer}
           </h1>
         </div>
@@ -976,59 +969,67 @@ export default function PollAnswerPage() {
           <button
             onClick={handleRefresh}
             disabled={loadingRefresh || transitionState !== "stable"}
-            className="flex items-center rounded-md bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 disabled:bg-blue-300"
+            className="flex items-center justify-center rounded-md bg-gray-200 p-2 text-gray-700 hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400"
             aria-label={strings.poll.refreshPoll}
           >
             {loadingRefresh || transitionState !== "stable" ? (
-              <>
-                <svg
-                  className="mr-2 -ml-1 h-4 w-4 animate-spin"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-                <span>{strings.common.refreshing}</span>
-              </>
-            ) : (
-              <>
-                <svg
-                  className="mr-1 h-4 w-4"
-                  fill="none"
+              <svg
+                className="h-5 w-5 animate-spin"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
                   stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  />
-                </svg>
-                <span>{strings.common.refresh}</span>
-              </>
+                  strokeWidth="4"
+                ></circle>
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+            ) : (
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
             )}
           </button>
           {isLoggedIn && (
             <button
               onClick={logout}
-              className="rounded-md bg-gray-600 px-4 py-2 text-white hover:bg-gray-700"
+              className="flex items-center justify-center rounded-md bg-gray-200 p-2 text-gray-700 hover:bg-gray-300"
+              aria-label={strings.common.logout}
             >
-              {strings.common.logout}
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                />
+              </svg>
             </button>
           )}
         </div>
@@ -1041,6 +1042,17 @@ export default function PollAnswerPage() {
 
       {/* Main content with improved transition handling */}
       {renderContent()}
+
+      {/* Footer with logo */}
+      <div className="fixed right-0 bottom-0 left-0 flex justify-center pb-4">
+        <Image
+          src="/gcs_logo.png"
+          alt="GCS Logo"
+          width={60}
+          height={60}
+          className="opacity-80"
+        />
+      </div>
     </div>
   );
 }
