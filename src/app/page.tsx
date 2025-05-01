@@ -271,6 +271,8 @@ export default function PollsPage() {
   const [selectedPollId, setSelectedPollId] = useState<string | null>(null);
   const [pollStats, setPollStats] = useState<ParticipantStats[]>([]);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const [loadingPlayId, setLoadingPlayId] = useState<string | null>(null);
+  const [loadingEditId, setLoadingEditId] = useState<string | null>(null);
 
   // TRPC 대신 실시간 Firebase 구독 사용
   const { data: polls, loading: isLoading } = usePolls();
@@ -319,6 +321,16 @@ export default function PollsPage() {
         // Error will be handled by the onError callback in the mutation
       }
     }
+  };
+
+  const handlePlay = (pollId: string) => {
+    setLoadingPlayId(pollId);
+    router.push(`/polls/play/${pollId}`);
+  };
+
+  const handleEdit = (pollId: string) => {
+    setLoadingEditId(pollId);
+    router.push(`/polls/edit/${pollId}`);
   };
 
   // Find the selected poll name
@@ -410,12 +422,18 @@ export default function PollsPage() {
                   <td className="px-6 py-4 text-right text-sm font-medium whitespace-nowrap">
                     <div className="flex justify-end space-x-2">
                       <button
-                        onClick={() => router.push(`/polls/play/${poll.id}`)}
+                        onClick={() => handlePlay(poll.id!)}
                         className="rounded bg-green-100 p-1 text-green-600 hover:bg-green-200"
-                        disabled={deleteId === poll.id}
+                        disabled={
+                          deleteId === poll.id || loadingPlayId === poll.id
+                        }
                         title={strings.poll.play}
                       >
-                        <PlayIcon className="h-5 w-5" />
+                        {loadingPlayId === poll.id ? (
+                          <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-green-600"></div>
+                        ) : (
+                          <PlayIcon className="h-5 w-5" />
+                        )}
                       </button>
                       <button
                         onClick={() => handleShowStats(poll.id!)}
@@ -430,12 +448,18 @@ export default function PollsPage() {
                         )}
                       </button>
                       <button
-                        onClick={() => router.push(`/polls/edit/${poll.id}`)}
+                        onClick={() => handleEdit(poll.id!)}
                         className="rounded bg-yellow-100 p-1 text-yellow-600 hover:bg-yellow-200"
-                        disabled={deleteId === poll.id}
+                        disabled={
+                          deleteId === poll.id || loadingEditId === poll.id
+                        }
                         title={strings.poll.edit}
                       >
-                        <PencilIcon className="h-5 w-5" />
+                        {loadingEditId === poll.id ? (
+                          <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-yellow-600"></div>
+                        ) : (
+                          <PencilIcon className="h-5 w-5" />
+                        )}
                       </button>
                       <button
                         onClick={() => handleDelete(poll.id!)}

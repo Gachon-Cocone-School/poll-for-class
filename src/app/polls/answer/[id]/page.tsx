@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
+import Image from "next/image";
 import {
   collection,
   doc,
@@ -932,9 +933,18 @@ export default function PollAnswerPage() {
     <div className="container mx-auto p-4">
       {/* Header with poll info, refresh and logout buttons */}
       <div className="mb-8 flex items-center justify-between">
-        <h1 className="text-3xl font-bold">
-          {poll ? poll.poll_name : strings.poll.answer}
-        </h1>
+        <div className="flex items-center">
+          <Image
+            src="/gcs_logo.png"
+            alt="GCS Logo"
+            width={40}
+            height={40}
+            className="mr-3"
+          />
+          <h1 className="text-3xl font-bold">
+            {poll ? poll.poll_name : strings.poll.answer}
+          </h1>
+        </div>
         <div className="flex gap-2">
           <button
             onClick={handleRefresh}

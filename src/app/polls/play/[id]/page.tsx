@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Image from "next/image";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -303,11 +304,20 @@ export default function PollPlayPage() {
   return (
     <Layout>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">
-          {!poll
-            ? strings.common.loading
-            : `${strings.poll.playing}: ${poll.poll_name}`}
-        </h1>
+        <div className="flex items-center">
+          <Image
+            src="/gcs_logo.png"
+            alt="GCS Logo"
+            width={40}
+            height={40}
+            className="mr-3"
+          />
+          <h1 className="text-2xl font-bold">
+            {!poll
+              ? strings.common.loading
+              : `${strings.poll.playing}: ${poll.poll_name}`}
+          </h1>
+        </div>
         <button
           onClick={() => router.back()}
           className="rounded-md bg-gray-200 px-4 py-2 hover:bg-gray-300"

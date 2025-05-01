@@ -19,6 +19,7 @@ export default function GroupsPage() {
   const router = useRouter();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const { logout, isAuthenticated } = useAdminAuth();
+  const [loadingEditId, setLoadingEditId] = useState<string | null>(null);
 
   // 실시간 Firebase 구독 사용
   const { data: groups, loading: isLoading } = useGroups();
@@ -37,6 +38,11 @@ export default function GroupsPage() {
       await deleteMutation.mutateAsync({ id });
       setDeleteId(null);
     }
+  };
+
+  const handleEdit = (groupId: string) => {
+    setLoadingEditId(groupId);
+    router.push(`/groups/edit/${groupId}`);
   };
 
   return (
@@ -114,12 +120,18 @@ export default function GroupsPage() {
                   <td className="px-6 py-4 text-right text-sm font-medium whitespace-nowrap">
                     <div className="flex justify-end space-x-2">
                       <button
-                        onClick={() => router.push(`/groups/edit/${group.id}`)}
+                        onClick={() => handleEdit(group.id!)}
                         className="rounded bg-yellow-100 p-1 text-yellow-600 hover:bg-yellow-200"
-                        disabled={deleteId === group.id}
+                        disabled={
+                          deleteId === group.id || loadingEditId === group.id
+                        }
                         title={strings.group.edit}
                       >
-                        <PencilIcon className="h-5 w-5" />
+                        {loadingEditId === group.id ? (
+                          <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-yellow-600"></div>
+                        ) : (
+                          <PencilIcon className="h-5 w-5" />
+                        )}
                       </button>
                       <button
                         onClick={() => handleDelete(group.id!)}

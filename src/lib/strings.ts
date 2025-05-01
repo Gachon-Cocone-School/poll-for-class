@@ -154,7 +154,7 @@ export const strings = {
     memberLoginDesc: "투표에 참여하려면 로그인하세요",
     name: "이름",
     memberNumber: "학번",
-    notAMember: "해당 그룹의 멤버가 아닙니다.",
+    notAMember: "이름 또는 학번이 잘못된 것 같습니다.",
     loginFailed: "로그인에 실패했습니다. 다시 시도해 주세요.",
     loginError: "로그인 중 오류가 발생했습니다.",
     authError: "인증 오류",

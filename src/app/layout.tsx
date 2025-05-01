@@ -11,7 +11,7 @@ const inter = Inter({
 });
 
 export const metadata = {
-  title: "Poll App",
+  title: "GCS Poll",
   description: "A simple polling application using Firebase and the T3 Stack",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
 };
