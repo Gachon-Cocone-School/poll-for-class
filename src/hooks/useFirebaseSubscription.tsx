@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Unsubscribe } from "firebase/firestore";
+import type { Unsubscribe } from "firebase/firestore";
 
 /**
  * A custom hook to manage Firebase subscriptions with proper cleanup
@@ -47,17 +47,19 @@ export function useFirebaseQuery<T>(
     setLoading(true);
 
     // 데이터 설정 래퍼 함수 - 컴포넌트가 마운트된 상태에서만 상태 업데이트
-    const safeSetData = (newData: T) => {
+    const safeSetData: React.Dispatch<React.SetStateAction<T>> = (value) => {
       if (isMounted) {
-        setData(newData);
+        setData(value);
         setLoading(false); // 첫 데이터 로드 시 로딩 상태 해제
       }
     };
 
     // 에러 설정 래퍼 함수
-    const safeSetError = (newError: Error) => {
+    const safeSetError: React.Dispatch<React.SetStateAction<Error | null>> = (
+      value,
+    ) => {
       if (isMounted) {
-        setError(newError);
+        setError(value);
         setLoading(false); // 에러 발생 시에도 로딩 상태 해제
       }
     };

@@ -122,7 +122,12 @@ export default function EditGroupPage() {
   ) => {
     const { name, value } = e.target;
     const updatedMembers = [...members];
-    updatedMembers[index] = { ...updatedMembers[index], [name]: value };
+    updatedMembers[index] = {
+      id: updatedMembers[index]?.id,
+      member_name: updatedMembers[index]?.member_name || "",
+      member_no: updatedMembers[index]?.member_no || "",
+      [name]: value,
+    };
     setMembers(updatedMembers);
   };
 
@@ -132,6 +137,8 @@ export default function EditGroupPage() {
 
   const removeMemberField = (index: number) => {
     const member = members[index];
+    if (!member) return; // Guard against undefined member
+
     if (member.id) {
       removeMember.mutate(
         {
@@ -213,7 +220,7 @@ export default function EditGroupPage() {
     return (
       <Layout>
         <div className="mx-auto max-w-md rounded-md bg-yellow-50 p-4">
-          <p className="text-yellow-700">{strings.group.notFound}</p>
+          <p className="text-yellow-700">{strings.errors.notFound}</p>
           <button
             onClick={() => router.push("/groups")}
             className="mt-4 rounded-md bg-gray-200 px-4 py-2 text-gray-700 hover:bg-gray-300"

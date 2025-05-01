@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Member } from "../types";
+import type { Member } from "../types";
 
 const MEMBER_AUTH_KEY = "poll_member_auth";
 

@@ -33,6 +33,16 @@ export interface Poll {
   participant_stats?: ParticipantStats[];
 }
 
+// API 응답용 Poll 인터페이스 - poll_group이 DocumentReference가 아닌 확장된 객체
+export interface PollWithGroupData {
+  id?: string;
+  poll_name: string;
+  poll_description: string;
+  poll_group: { id: string } & Partial<Group>; // Group 데이터를 포함할 수 있는 확장된 형태
+  active_question?: string | null;
+  participant_stats?: ParticipantStats[];
+}
+
 export interface Question {
   id?: string;
   question: string;
@@ -42,8 +52,10 @@ export interface Question {
 
 export interface Answer {
   id?: string;
-  member_id: string;
-  member_name: string;
+  member_id?: string;
+  member_name?: string;
+  member_ref?: DocumentReference;
   choice: string;
-  created_at: number;
+  created_at?: number;
+  updated_at?: number;
 }

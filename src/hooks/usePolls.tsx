@@ -9,14 +9,20 @@ import {
   subscribeToAllAnswersForQuestion,
   subscribeToPollResults,
 } from "../lib/pollService";
-import { Poll, Question, Answer, QuestionResult } from "../lib/types";
+import type {
+  Poll,
+  Question,
+  Answer,
+  QuestionResult,
+  PollWithGroupData,
+} from "../lib/types";
 import { useFirebaseQuery } from "./useFirebaseSubscription";
 
 /**
  * Hook to get all polls with real-time updates
  */
 export function usePolls() {
-  return useFirebaseQuery<Poll[]>((setData, setError) => {
+  return useFirebaseQuery<PollWithGroupData[]>((setData, setError) => {
     return subscribeToPolls(
       (polls) => setData(polls),
       (error) => setError(error),
@@ -30,7 +36,7 @@ export function usePolls() {
  * @param pollId The ID of the poll to get
  */
 export function usePoll(pollId: string | undefined) {
-  return useFirebaseQuery<Poll | null>(
+  return useFirebaseQuery<PollWithGroupData | null>(
     (setData, setError) => {
       if (!pollId) {
         setData(null);

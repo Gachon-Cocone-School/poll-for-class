@@ -204,15 +204,27 @@ export default function PollPlayPage() {
         if (!answer.member_ref) return false;
 
         try {
+          // member_ref는 DocumentReference이지만 실제 데이터는 다른 형태일 수 있음
+          // any 타입으로 일시적 캐스팅하여 내부 속성에 접근
+          const memberRef = answer.member_ref as any;
+
           if (
-            answer.member_ref._key &&
-            answer.member_ref._key.path &&
-            Array.isArray(answer.member_ref._key.path.segments)
+            memberRef._key &&
+            memberRef._key.path &&
+            Array.isArray(memberRef._key.path.segments)
           ) {
-            const segments = answer.member_ref._key.path.segments;
+            const segments = memberRef._key.path.segments;
             const answeredMemberId = segments[segments.length - 1];
             return answeredMemberId === member.id;
           }
+
+          // 또는 일반적인 Firebase DocumentReference인 경우 경로에서 ID 추출
+          if (typeof memberRef.path === "string") {
+            const pathParts = memberRef.path.split("/");
+            const answeredMemberId = pathParts[pathParts.length - 1];
+            return answeredMemberId === member.id;
+          }
+
           return false;
         } catch (error) {
           console.error("Error comparing member refs:", error);
@@ -233,15 +245,27 @@ export default function PollPlayPage() {
         if (!answer.member_ref) return false;
 
         try {
+          // member_ref는 DocumentReference이지만 실제 데이터는 다른 형태일 수 있음
+          // any 타입으로 일시적 캐스팅하여 내부 속성에 접근
+          const memberRef = answer.member_ref as any;
+
           if (
-            answer.member_ref._key &&
-            answer.member_ref._key.path &&
-            Array.isArray(answer.member_ref._key.path.segments)
+            memberRef._key &&
+            memberRef._key.path &&
+            Array.isArray(memberRef._key.path.segments)
           ) {
-            const segments = answer.member_ref._key.path.segments;
+            const segments = memberRef._key.path.segments;
             const answeredMemberId = segments[segments.length - 1];
             return answeredMemberId === member.id;
           }
+
+          // 또는 일반적인 Firebase DocumentReference인 경우 경로에서 ID 추출
+          if (typeof memberRef.path === "string") {
+            const pathParts = memberRef.path.split("/");
+            const answeredMemberId = pathParts[pathParts.length - 1];
+            return answeredMemberId === member.id;
+          }
+
           return false;
         } catch (error) {
           console.error("Error comparing member refs:", error);

@@ -16,7 +16,7 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 import { db } from "../../../../lib/firebase";
-import { Poll, Question, ParticipantStats } from "../../../../lib/types";
+import type { Poll, Question, ParticipantStats } from "../../../../lib/types";
 import {
   usePoll,
   useActiveQuestion,
@@ -288,6 +288,12 @@ const findMemberInGroup = async (
   }
 
   const memberDoc = memberSnapshot.docs[0];
+
+  // 타입 안전성을 위한 추가 체크
+  if (!memberDoc) {
+    return { exists: false };
+  }
+
   return {
     exists: true,
     memberId: memberDoc.id,
@@ -322,6 +328,12 @@ const getOrSubmitAnswer = async (
     // If answer exists, update it
     if (!answerSnapshot.empty) {
       const answerDoc = answerSnapshot.docs[0];
+
+      // 타입 안전성을 위한 체크 추가
+      if (!answerDoc) {
+        throw new Error("Answer document not found");
+      }
+
       const answerData = {
         choice: choice,
         updated_at: timestamp,
@@ -356,6 +368,12 @@ const getOrSubmitAnswer = async (
   // Just retrieving existing answer (no choice provided)
   if (!answerSnapshot.empty) {
     const answerDoc = answerSnapshot.docs[0];
+
+    // 타입 안전성을 위한 체크 추가
+    if (!answerDoc) {
+      return null;
+    }
+
     return {
       id: answerDoc.id,
       ...(answerDoc.data() as Omit<Answer, "id">),
@@ -401,13 +419,22 @@ const subscribeToMemberAnswer = (
           }))
           .sort((a, b) => b.updated_at - a.updated_at);
 
-        onData(answers[0]);
+        // 배열이 비어있는지 확인
+        if (answers.length === 0) {
+          onData(null);
+        } else {
+          // 타입 단언을 사용하여 TypeScript에게 이 값이 Answer 타입임을 명시적으로 알림
+          const answer = answers[0] as Answer;
+          onData(answer);
+        }
       } catch (error) {
         console.error("Error in member answer subscription:", error);
+        onData(null); // 에러 발생 시 null로 처리
       }
     },
     (error) => {
       console.error("Member answer subscription error:", error);
+      onData(null);
     },
   );
 };

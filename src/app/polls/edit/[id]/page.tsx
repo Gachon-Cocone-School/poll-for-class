@@ -115,8 +115,29 @@ export default function EditPollPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const { name, value } = e.target;
-    const updatedQuestions = [...questions];
-    updatedQuestions[index] = { ...updatedQuestions[index], [name]: value };
+
+    // 안전한 방식으로 업데이트된 질문 배열 복사
+    const updatedQuestions = questions.map((question, i) => {
+      // 현재 인덱스와 일치하는 경우에만 업데이트
+      if (i === index) {
+        if (name === "question") {
+          // question 필드 업데이트
+          return {
+            ...question,
+            question: value,
+          };
+        } else {
+          // 다른 필드 업데이트 (id 등이 있다면 유지)
+          return {
+            ...question,
+            [name]: value,
+          };
+        }
+      }
+      // 다른 질문은 그대로 반환
+      return question;
+    });
+
     setQuestions(updatedQuestions);
   };
 
@@ -125,8 +146,25 @@ export default function EditPollPage() {
     choiceIndex: number,
     value: string,
   ) => {
-    const updatedQuestions = [...questions];
-    updatedQuestions[questionIndex].choices[choiceIndex] = value;
+    // map을 사용하여 안전하게 질문 배열 업데이트
+    const updatedQuestions = questions.map((question, qIndex) => {
+      if (qIndex === questionIndex) {
+        // 현재 질문의 선택지 배열을 안전하게 업데이트
+        const updatedChoices = question.choices.map((choice, cIndex) => {
+          if (cIndex === choiceIndex) {
+            return value;
+          }
+          return choice;
+        });
+
+        return {
+          ...question,
+          choices: updatedChoices,
+        };
+      }
+      return question;
+    });
+
     setQuestions(updatedQuestions);
   };
 
@@ -135,10 +173,17 @@ export default function EditPollPage() {
   };
 
   const removeQuestionField = (index: number) => {
-    const question = questions[index];
+    // 인덱스 범위 체크
+    if (index < 0 || index >= questions.length) {
+      return;
+    }
 
-    // If the question has an ID, it exists in the database and needs to be removed
-    if (question.id) {
+    // TypeScript에게 이 시점에서 question이 정의되었음을 확신시킴
+    const question = { ...questions[index] };
+
+    // 이제 question 객체가 확실히 존재하므로 안전하게 id 속성 확인 가능
+    if ("id" in question && question.id) {
+      // ID가 있는 질문은 데이터베이스에서 삭제
       deleteQuestion.mutate(
         {
           pollId: id,
@@ -156,7 +201,7 @@ export default function EditPollPage() {
         },
       );
     } else {
-      // If the question doesn't have an ID, it's just a local entry that needs removal
+      // ID가 없는 질문은 로컬에서만 삭제
       const filteredQuestions = questions.filter((_, i) => i !== index);
       setQuestions(
         filteredQuestions.length
@@ -167,19 +212,39 @@ export default function EditPollPage() {
   };
 
   const addChoiceField = (questionIndex: number) => {
-    const updatedQuestions = [...questions];
-    updatedQuestions[questionIndex].choices.push("");
+    // 안전한 방식으로 배열 업데이트
+    const updatedQuestions = questions.map((question, qIndex) => {
+      if (qIndex === questionIndex) {
+        // 현재 질문의 선택지 배열에 새 항목 추가
+        return {
+          ...question,
+          choices: [...question.choices, ""],
+        };
+      }
+      return question;
+    });
+
     setQuestions(updatedQuestions);
   };
 
   const removeChoiceField = (questionIndex: number, choiceIndex: number) => {
-    const updatedQuestions = [...questions];
-    if (updatedQuestions[questionIndex].choices.length > 2) {
-      updatedQuestions[questionIndex].choices = updatedQuestions[
-        questionIndex
-      ].choices.filter((_, i) => i !== choiceIndex);
-      setQuestions(updatedQuestions);
-    }
+    // 안전한 방식으로 배열 업데이트
+    const updatedQuestions = questions.map((question, qIndex) => {
+      if (qIndex === questionIndex) {
+        // 현재 질문의 선택지가 2개 초과인 경우에만 삭제
+        if (question.choices.length > 2) {
+          return {
+            ...question,
+            choices: question.choices.filter(
+              (_, cIndex) => cIndex !== choiceIndex,
+            ),
+          };
+        }
+      }
+      return question;
+    });
+
+    setQuestions(updatedQuestions);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -9,18 +9,21 @@ import {
   query,
   where,
   onSnapshot,
+} from "firebase/firestore";
+import type {
   DocumentReference,
   DocumentData,
   Unsubscribe,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import {
+import type {
   Poll,
   Question,
   Answer,
   QuestionResult,
   ParticipantStats,
   Member,
+  PollWithGroupData,
 } from "./types";
 
 const POLLS_COLLECTION = "polls";
@@ -29,7 +32,7 @@ const ANSWERS_COLLECTION = "answers";
 const GROUPS_COLLECTION = "groups";
 
 // Get all polls
-export const getPolls = async (): Promise<Poll[]> => {
+export const getPolls = async (): Promise<PollWithGroupData[]> => {
   const pollsCol = collection(db, POLLS_COLLECTION);
   const pollSnapshot = await getDocs(pollsCol);
 
@@ -64,7 +67,7 @@ export const getPolls = async (): Promise<Poll[]> => {
 
 // Subscribe to polls with real-time updates
 export const subscribeToPolls = (
-  onData: (polls: Poll[]) => void,
+  onData: (polls: PollWithGroupData[]) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe => {
   const pollsCol = collection(db, POLLS_COLLECTION);
@@ -113,7 +116,9 @@ export const subscribeToPolls = (
 };
 
 // Get a single poll by ID
-export const getPollById = async (id: string): Promise<Poll | null> => {
+export const getPollById = async (
+  id: string,
+): Promise<PollWithGroupData | null> => {
   const pollRef = doc(db, POLLS_COLLECTION, id);
   const pollDoc = await getDoc(pollRef);
 
@@ -145,7 +150,7 @@ export const getPollById = async (id: string): Promise<Poll | null> => {
 // Subscribe to a single poll with real-time updates
 export const subscribeToPoll = (
   id: string,
-  onData: (poll: Poll | null) => void,
+  onData: (poll: PollWithGroupData | null) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe => {
   const pollRef = doc(db, POLLS_COLLECTION, id);
@@ -539,14 +544,15 @@ export const getMemberAnswer = async (
   if (answerSnapshot.empty) return null;
 
   // Return the most recent answer if multiple exist
-  const answers = answerSnapshot.docs
+  const answers: Answer[] = answerSnapshot.docs
     .map((doc) => ({
       id: doc.id,
       ...(doc.data() as Omit<Answer, "id">),
     }))
-    .sort((a, b) => b.created_at - a.created_at);
+    .sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
 
-  return answers[0];
+  // Use explicit type annotation when accessing the array
+  return answers.length > 0 ? (answers[0] as Answer) : null;
 };
 
 // Subscribe to member's answer
@@ -578,14 +584,14 @@ export const subscribeToMemberAnswer = (
         }
 
         // Return the most recent answer if multiple exist
-        const answers = snapshot.docs
+        const answers: Answer[] = snapshot.docs
           .map((doc) => ({
             id: doc.id,
             ...(doc.data() as Omit<Answer, "id">),
           }))
-          .sort((a, b) => b.created_at - a.created_at);
+          .sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
 
-        onData(answers[0]);
+        onData(answers.length > 0 ? (answers[0] as Answer) : null);
       } catch (error) {
         console.error("Error in member answer subscription:", error);
         if (onError) onError(error as Error);
@@ -688,8 +694,10 @@ export const calculateAndSavePollResults = async (
     // Count answers by choice
     answersSnapshot.docs.forEach((doc) => {
       const answer = doc.data() as Answer;
-      if (results[answer.choice] !== undefined) {
-        results[answer.choice]++;
+      if (answer.choice && typeof results[answer.choice] === "number") {
+        // Use a more explicit approach to increment the count
+        const currentCount = results[answer.choice] || 0;
+        results[answer.choice] = currentCount + 1;
       }
     });
 
@@ -869,14 +877,21 @@ export const calculateAndSaveParticipantStats = async (
     answersSnapshot.docs.forEach((doc) => {
       const answer = doc.data() as Answer;
 
-      // Only count if the member is in our tracking
-      if (memberStats[answer.member_ref.id]) {
+      // Only count if the member reference exists and the member is in our tracking
+      if (
+        answer.member_ref &&
+        answer.member_ref.id &&
+        memberStats[answer.member_ref.id]
+      ) {
         // Increment participation count
-        memberStats[answer.member_ref.id].participation_count++;
+        const memberStat = memberStats[answer.member_ref.id];
+        if (memberStat) {
+          memberStat.participation_count++;
 
-        // Check if the member selected one of the winning choices
-        if (winningChoices.includes(answer.choice)) {
-          memberStats[answer.member_ref.id].correct_predictions++;
+          // Check if the member selected one of the winning choices
+          if (winningChoices.includes(answer.choice)) {
+            memberStat.correct_predictions++;
+          }
         }
       }
     });

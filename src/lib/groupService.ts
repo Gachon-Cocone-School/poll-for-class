@@ -11,10 +11,10 @@ import {
   collectionGroup,
   where,
   onSnapshot,
-  Unsubscribe,
 } from "firebase/firestore";
+import type { Unsubscribe } from "firebase/firestore";
 import { db } from "./firebase";
-import { Group, Member } from "./types";
+import type { Group, Member } from "./types";
 
 const GROUPS_COLLECTION = "groups";
 const MEMBERS_COLLECTION = "members";

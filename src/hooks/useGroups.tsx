@@ -3,7 +3,7 @@ import {
   subscribeToGroup,
   subscribeToGroupMembers,
 } from "../lib/groupService";
-import { Group, Member } from "../lib/types";
+import type { Group, Member } from "../lib/types";
 import { useFirebaseQuery } from "./useFirebaseSubscription";
 
 /**

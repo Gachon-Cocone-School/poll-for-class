@@ -40,8 +40,29 @@ export default function CreatePollPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const { name, value } = e.target;
-    const updatedQuestions = [...questions];
-    updatedQuestions[index] = { ...updatedQuestions[index], [name]: value };
+
+    // 안전한 방식으로 업데이트된 질문 배열 복사
+    const updatedQuestions = questions.map((question, i) => {
+      // 현재 인덱스와 일치하는 경우에만 업데이트
+      if (i === index) {
+        if (name === "question") {
+          // question 필드 업데이트
+          return {
+            ...question,
+            question: value,
+          };
+        } else {
+          // 다른 필드 업데이트 (현재는 사용되지 않지만 확장성을 위해 유지)
+          return {
+            ...question,
+            [name]: value,
+          };
+        }
+      }
+      // 다른 질문은 그대로 반환
+      return question;
+    });
+
     setQuestions(updatedQuestions);
   };
 
@@ -50,8 +71,25 @@ export default function CreatePollPage() {
     choiceIndex: number,
     value: string,
   ) => {
-    const updatedQuestions = [...questions];
-    updatedQuestions[questionIndex].choices[choiceIndex] = value;
+    // map을 사용하여 안전하게 질문 배열 업데이트
+    const updatedQuestions = questions.map((question, qIndex) => {
+      if (qIndex === questionIndex) {
+        // 현재 질문의 선택지 배열을 안전하게 업데이트
+        const updatedChoices = question.choices.map((choice, cIndex) => {
+          if (cIndex === choiceIndex) {
+            return value;
+          }
+          return choice;
+        });
+
+        return {
+          ...question,
+          choices: updatedChoices,
+        };
+      }
+      return question;
+    });
+
     setQuestions(updatedQuestions);
   };
 
@@ -69,19 +107,39 @@ export default function CreatePollPage() {
   };
 
   const addChoiceField = (questionIndex: number) => {
-    const updatedQuestions = [...questions];
-    updatedQuestions[questionIndex].choices.push("");
+    // 안전한 방식으로 배열 업데이트
+    const updatedQuestions = questions.map((question, qIndex) => {
+      if (qIndex === questionIndex) {
+        // 현재 질문의 선택지 배열에 새 항목 추가
+        return {
+          ...question,
+          choices: [...question.choices, ""],
+        };
+      }
+      return question;
+    });
+
     setQuestions(updatedQuestions);
   };
 
   const removeChoiceField = (questionIndex: number, choiceIndex: number) => {
-    const updatedQuestions = [...questions];
-    if (updatedQuestions[questionIndex].choices.length > 2) {
-      updatedQuestions[questionIndex].choices = updatedQuestions[
-        questionIndex
-      ].choices.filter((_, i) => i !== choiceIndex);
-      setQuestions(updatedQuestions);
-    }
+    // 안전한 방식으로 배열 업데이트
+    const updatedQuestions = questions.map((question, qIndex) => {
+      if (qIndex === questionIndex) {
+        // 현재 질문의 선택지가 2개 초과인 경우에만 삭제
+        if (question.choices.length > 2) {
+          return {
+            ...question,
+            choices: question.choices.filter(
+              (_, cIndex) => cIndex !== choiceIndex,
+            ),
+          };
+        }
+      }
+      return question;
+    });
+
+    setQuestions(updatedQuestions);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

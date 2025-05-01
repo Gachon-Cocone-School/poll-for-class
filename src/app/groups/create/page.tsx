@@ -35,7 +35,11 @@ export default function CreateGroupPage() {
   ) => {
     const { name, value } = e.target;
     const updatedMembers = [...members];
-    updatedMembers[index] = { ...updatedMembers[index], [name]: value };
+    updatedMembers[index] = {
+      member_name: updatedMembers[index]?.member_name || "",
+      member_no: updatedMembers[index]?.member_no || "",
+      [name]: value,
+    };
     setMembers(updatedMembers);
   };
 

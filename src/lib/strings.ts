@@ -143,7 +143,7 @@ export const strings = {
     loadingStats: "리더보드 정보를 불러오는 중...",
     scoreDisplay: "{0}점",
     rankingDisplay: "{0} / {1}",
-    noStatsAvailable: "통계 정보가 없습니다",
+    memberStatsNoData: "통계 정보가 없습니다",
   },
 
   auth: {

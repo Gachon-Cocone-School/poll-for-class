@@ -15,7 +15,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { usePolls } from "~/hooks/usePolls"; // 실시간 구독 훅 사용
 import { useAdminAuth } from "~/hooks/useAdminAuth"; // Admin auth hook 추가
-import { ParticipantStats } from "~/lib/types";
+import type { ParticipantStats } from "~/lib/types";
 import strings, { formatString } from "~/lib/strings";
 
 // Stats Modal Component
@@ -43,23 +43,34 @@ const StatsModal: React.FC<StatsModalProps> = ({
   // Determine if there are any ties in the top 3
   const hasTies =
     top3.length > 1 &&
-    ((top3.length >= 2 && top3[0].rank === top3[1].rank) ||
+    ((top3.length >= 2 && top3[0]?.rank === top3[1]?.rank) ||
       (top3.length === 3 &&
-        (top3[1].rank === top3[2].rank || top3[0].rank === top3[2].rank)));
+        (top3[1]?.rank === top3[2]?.rank || top3[0]?.rank === top3[2]?.rank)));
 
   // Determine heights based on ranks
   // If participants have tied ranks, they should have podiums of same height
-  const getPodiumHeight = (participant: ParticipantStats, index: number) => {
+  const getPodiumHeight = (
+    participant: ParticipantStats | undefined,
+    index: number,
+  ) => {
     // Default heights for 1st, 2nd, 3rd places
     const defaultHeights = {
       podium: ["h-28", "h-24", "h-20"],
       base: ["h-24", "h-16", "h-10"],
     };
 
+    // If participant is undefined, return default height
+    if (!participant) {
+      return {
+        podium: defaultHeights.podium[index] || defaultHeights.podium[0],
+        base: defaultHeights.base[index] || defaultHeights.base[0],
+      };
+    }
+
     // Check if this participant is tied with anyone else in top 3
     const isTiedWithPrevious =
-      index > 0 && participant.rank === top3[index - 1].rank;
-    const isTiedWithFirst = index > 0 && participant.rank === top3[0].rank;
+      index > 0 && participant.rank === top3[index - 1]?.rank;
+    const isTiedWithFirst = index > 0 && participant.rank === top3[0]?.rank;
 
     // If tied with the previous position, use the same height
     if (isTiedWithPrevious) {
@@ -134,7 +145,7 @@ const StatsModal: React.FC<StatsModalProps> = ({
                     <div className="mx-4 flex flex-col items-center">
                       <div className="mb-2 flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-4 border-gray-300 bg-gray-100">
                         <span className="text-3xl font-bold text-gray-600">
-                          {top3[1].rank}
+                          {top3[1]?.rank}
                         </span>
                       </div>
                       <div
@@ -160,7 +171,7 @@ const StatsModal: React.FC<StatsModalProps> = ({
                     <div className="mx-4 -mt-6 flex flex-col items-center">
                       <div className="mb-2 flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-yellow-500 bg-yellow-100">
                         <span className="text-4xl font-bold text-yellow-600">
-                          {top3[0].rank}
+                          {top3[0]?.rank}
                         </span>
                       </div>
                       <div
@@ -186,7 +197,7 @@ const StatsModal: React.FC<StatsModalProps> = ({
                     <div className="mx-4 flex flex-col items-center">
                       <div className="mb-2 flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-4 border-amber-700 bg-amber-100">
                         <span className="text-2xl font-bold text-amber-800">
-                          {top3[2].rank}
+                          {top3[2]?.rank}
                         </span>
                       </div>
                       <div
@@ -231,7 +242,7 @@ const StatsModal: React.FC<StatsModalProps> = ({
                     {stats.slice(3).map((stat, index) => {
                       // 이전 참가자와 순위가 같은지 확인 (동률 강조)
                       const isTied =
-                        index > 0 && stat.rank === stats[index + 3 - 1].rank;
+                        index > 0 && stat.rank === stats[index + 3 - 1]?.rank;
 
                       return (
                         <tr
@@ -416,7 +427,14 @@ export default function PollsPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-500">
-                      {poll.poll_group.group_name || poll.poll_group.id}
+                      {/* Display group name or ID with explicit string casting */}
+                      {String(
+                        typeof poll.poll_group === "object" &&
+                          poll.poll_group !== null &&
+                          "group_name" in poll.poll_group
+                          ? poll.poll_group.group_name
+                          : poll.poll_group?.id || strings.common.unnamed,
+                      )}
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right text-sm font-medium whitespace-nowrap">
