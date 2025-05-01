@@ -30,6 +30,7 @@ export const strings = {
     actions: "작업",
     remove: "제거",
     unnamed: "이름 없음",
+    deleting: "삭제 중",
   },
 
   poll: {
@@ -75,6 +76,9 @@ export const strings = {
     questionNotFoundDescription: "요청한 질문을 찾을 수 없습니다.",
     loadError: "투표를 불러오는 중 오류가 발생했습니다: {0}",
     refreshPoll: "투표 새로고침",
+    deleteAnswer: "응답 삭제",
+    deleteAnswerConfirm: "이 멤버의 응답을 삭제하시겠습니까?",
+    deleteAnswerError: "응답 삭제 중 오류가 발생했습니다.",
   },
 
   group: {

@@ -2,10 +2,14 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  TrashIcon,
+} from "@heroicons/react/24/outline";
 import Layout from "~/components/Layout";
 import { api } from "~/trpc/react";
-import {
+import type {
   Question,
   Member,
   QuestionResult,
@@ -22,6 +26,12 @@ import { useGroupMembers } from "~/hooks/useGroups";
 import { QRCodeSVG } from "qrcode.react";
 import { env } from "~/env";
 import strings from "~/lib/strings";
+import { deleteDoc, doc } from "firebase/firestore";
+import { db } from "~/lib/firebase";
+
+const POLLS_COLLECTION = "polls";
+const QUESTIONS_COLLECTION = "questions";
+const ANSWERS_COLLECTION = "answers";
 
 export default function PollPlayPage() {
   const params = useParams();
@@ -32,6 +42,10 @@ export default function PollPlayPage() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [sortedQuestions, setSortedQuestions] = useState<Question[]>([]);
   const [sortedMembers, setSortedMembers] = useState<Member[]>([]);
+  const [hoveredMemberId, setHoveredMemberId] = useState<string | null>(null);
+  const [deletingMemberId, setDeletingMemberId] = useState<string | null>(null);
+  const [isStartingPoll, setIsStartingPoll] = useState(false);
+  const [isEndingPoll, setIsEndingPoll] = useState(false);
 
   // Use real-time hooks for data fetching
   const { data: poll, loading: pollLoading } = usePoll(pollId);
@@ -119,7 +133,15 @@ export default function PollPlayPage() {
       });
     }
 
-    updateActiveMutation.mutate({ pollId, questionId: currentQuestion.id });
+    setIsStartingPoll(true);
+    updateActiveMutation.mutate(
+      { pollId, questionId: currentQuestion.id },
+      {
+        onSettled: () => {
+          setIsStartingPoll(false);
+        },
+      },
+    );
   }, [
     pollId,
     sortedQuestions,
@@ -135,10 +157,18 @@ export default function PollPlayPage() {
     if (!currentQuestion?.id) return;
 
     // 결과 계산 - onSuccess 콜백에서 참가자 통계도 계산함
-    calculateResultsMutation.mutate({
-      pollId,
-      questionId: currentQuestion.id,
-    });
+    setIsEndingPoll(true);
+    calculateResultsMutation.mutate(
+      {
+        pollId,
+        questionId: currentQuestion.id,
+      },
+      {
+        onSettled: () => {
+          setIsEndingPoll(false);
+        },
+      },
+    );
 
     // 활성 질문 상태 업데이트
     updateActiveMutation.mutate({ pollId, questionId: null });
@@ -190,6 +220,76 @@ export default function PollPlayPage() {
       });
     },
     [questionAnswers, currentQuestion?.id],
+  );
+
+  // Helper function to get answer ID for a member
+  const getAnswerIdForMember = useCallback(
+    (member: Member) => {
+      if (!questionAnswers.length || !currentQuestion?.id) return null;
+
+      // Find this member's answer to the current question
+      const memberAnswer = questionAnswers.find((answer) => {
+        if (!answer.member_ref) return false;
+
+        try {
+          if (
+            answer.member_ref._key &&
+            answer.member_ref._key.path &&
+            Array.isArray(answer.member_ref._key.path.segments)
+          ) {
+            const segments = answer.member_ref._key.path.segments;
+            const answeredMemberId = segments[segments.length - 1];
+            return answeredMemberId === member.id;
+          }
+          return false;
+        } catch (error) {
+          console.error("Error comparing member refs:", error);
+          return false;
+        }
+      });
+
+      return memberAnswer?.id || null;
+    },
+    [questionAnswers, currentQuestion?.id],
+  );
+
+  // Function to delete a member's answer
+  const deleteAnswer = useCallback(
+    async (member: Member) => {
+      if (!currentQuestion?.id || !member.id) return;
+
+      const answerId = getAnswerIdForMember(member);
+      if (!answerId) return;
+
+      try {
+        // Show confirmation
+        if (window.confirm(strings.poll.deleteAnswerConfirm)) {
+          setDeletingMemberId(member.id);
+
+          // Delete the answer document
+          const answerRef = doc(
+            db,
+            POLLS_COLLECTION,
+            pollId,
+            QUESTIONS_COLLECTION,
+            currentQuestion.id,
+            ANSWERS_COLLECTION,
+            answerId,
+          );
+
+          await deleteDoc(answerRef);
+          console.log(`Deleted answer for member ${member.member_name}`);
+
+          // Firebase real-time updates will automatically update the UI
+          setDeletingMemberId(null);
+        }
+      } catch (error) {
+        console.error("Error deleting answer:", error);
+        alert(strings.poll.deleteAnswerError);
+        setDeletingMemberId(null);
+      }
+    },
+    [pollId, currentQuestion?.id, getAnswerIdForMember],
   );
 
   // 로딩 상태 확인
@@ -261,25 +361,77 @@ export default function PollPlayPage() {
               <div className="flex space-x-2">
                 <button
                   onClick={handlePollStart}
-                  disabled={isPollActive}
-                  className={`rounded-md px-3 py-1 text-sm ${
-                    isPollActive
+                  disabled={isPollActive || isStartingPoll}
+                  className={`flex items-center rounded-md px-3 py-1 text-sm ${
+                    isPollActive || isStartingPoll
                       ? "cursor-not-allowed bg-gray-300 text-gray-500"
                       : "bg-blue-600 text-white hover:bg-blue-700"
                   }`}
                 >
-                  {strings.poll.start}
+                  {isStartingPoll ? (
+                    <>
+                      <svg
+                        className="mr-2 h-4 w-4 animate-spin"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                      {strings.common.loading}
+                    </>
+                  ) : (
+                    strings.poll.start
+                  )}
                 </button>
                 <button
                   onClick={handlePollEnd}
-                  disabled={!isPollActive}
-                  className={`rounded-md px-3 py-1 text-sm ${
-                    !isPollActive
+                  disabled={!isPollActive || isEndingPoll}
+                  className={`flex items-center rounded-md px-3 py-1 text-sm ${
+                    !isPollActive || isEndingPoll
                       ? "cursor-not-allowed bg-gray-300 text-gray-500"
                       : "bg-blue-600 text-white hover:bg-blue-700"
                   }`}
                 >
-                  {strings.poll.end}
+                  {isEndingPoll ? (
+                    <>
+                      <svg
+                        className="mr-2 h-4 w-4 animate-spin"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                      {strings.common.loading}
+                    </>
+                  ) : (
+                    strings.poll.end
+                  )}
                 </button>
               </div>
             </div>
@@ -354,17 +506,44 @@ export default function PollPlayPage() {
                 sortedMembers.map((member, index) => {
                   // Use the helper function to check if member has answered
                   const hasAnswered = checkIfMemberHasAnswered(member);
+                  const isHovered = hoveredMemberId === member.id;
+                  const isDeleting = deletingMemberId === member.id;
 
                   return (
                     <div
                       key={index}
-                      className={`flex h-12 items-center justify-center rounded-md border px-2 py-1 text-center text-base ${
+                      className={`relative flex h-12 items-center justify-center rounded-md border px-2 py-1 text-center text-base ${
                         hasAnswered
                           ? "border-green-500 bg-green-50"
                           : "border-gray-300 bg-gray-50"
                       }`}
+                      onMouseEnter={() =>
+                        hasAnswered &&
+                        isPollActive &&
+                        member.id &&
+                        setHoveredMemberId(member.id)
+                      }
+                      onMouseLeave={() => setHoveredMemberId(null)}
                     >
-                      {member.member_name || strings.common.unnamed}
+                      {hasAnswered &&
+                        isPollActive &&
+                        isHovered &&
+                        !isDeleting && (
+                          <button
+                            className="absolute top-1 right-1 rounded-full bg-red-100 p-1 text-red-600 hover:bg-red-200"
+                            onClick={() => deleteAnswer(member)}
+                            title={strings.poll.deleteAnswer}
+                          >
+                            <TrashIcon className="h-3 w-3" />
+                          </button>
+                        )}
+                      {isDeleting ? (
+                        <span className="text-xs text-gray-500">
+                          {strings.common.deleting}...
+                        </span>
+                      ) : (
+                        member.member_name || strings.common.unnamed
+                      )}
                     </div>
                   );
                 })
