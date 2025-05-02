@@ -79,6 +79,10 @@ export const strings = {
     deleteAnswer: "응답 삭제",
     deleteAnswerConfirm: "이 멤버의 응답을 삭제하시겠습니까?",
     deleteAnswerError: "응답 삭제 중 오류가 발생했습니다.",
+    deleteAllAnswers: "모든 응답 삭제",
+    deleteAllAnswersConfirm:
+      "이 질문에 대한 모든 응답을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+    deleteAllAnswersError: "응답 삭제 중 오류가 발생했습니다.",
   },
 
   group: {

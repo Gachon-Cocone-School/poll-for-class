@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Layout from "~/components/Layout";
@@ -17,6 +17,7 @@ import { usePolls } from "~/hooks/usePolls"; // 실시간 구독 훅 사용
 import { useAdminAuth } from "~/hooks/useAdminAuth"; // Admin auth hook 추가
 import type { ParticipantStats } from "~/lib/types";
 import strings, { formatString } from "~/lib/strings";
+import { subscribeToParticipantStats } from "~/lib/pollService"; // 올바른 경로에서 import
 
 // Stats Modal Component
 interface StatsModalProps {
@@ -67,32 +68,22 @@ const StatsModal: React.FC<StatsModalProps> = ({
       };
     }
 
-    // Check if this participant is tied with anyone else in top 3
-    const isTiedWithPrevious =
-      index > 0 && participant.rank === top3[index - 1]?.rank;
-    const isTiedWithFirst = index > 0 && participant.rank === top3[0]?.rank;
-
-    // If tied with the previous position, use the same height
-    if (isTiedWithPrevious) {
-      const prevIndex = index - 1;
-      return {
-        podium: defaultHeights.podium[prevIndex],
-        base: defaultHeights.base[prevIndex],
-      };
+    // Find the highest-ranked participant with the same rank
+    let highestIndex = index;
+    for (let i = 0; i < top3.length; i++) {
+      if (
+        i !== index &&
+        top3[i]?.rank === participant.rank &&
+        i < highestIndex
+      ) {
+        highestIndex = i;
+      }
     }
 
-    // If tied with first position but not adjacent, use first place height
-    if (isTiedWithFirst) {
-      return {
-        podium: defaultHeights.podium[0],
-        base: defaultHeights.base[0],
-      };
-    }
-
-    // Otherwise use default height for this position
+    // Use the height of the highest-ranked participant with the same rank
     return {
-      podium: defaultHeights.podium[index],
-      base: defaultHeights.base[index],
+      podium: defaultHeights.podium[highestIndex],
+      base: defaultHeights.base[highestIndex],
     };
   };
 
@@ -285,11 +276,32 @@ export default function PollsPage() {
   const [loadingPlayId, setLoadingPlayId] = useState<string | null>(null);
   const [loadingEditId, setLoadingEditId] = useState<string | null>(null);
 
+  // Add state to track stats subscription
+  const statsUnsubscribeRef = useRef<(() => void) | null>(null);
+
   // TRPC 대신 실시간 Firebase 구독 사용
   const { data: polls, loading: isLoading } = usePolls();
 
   // TRPC utils 가져오기
   const utils = api.useContext();
+
+  // Clean up stats subscription when component unmounts
+  useEffect(() => {
+    return () => {
+      if (statsUnsubscribeRef.current) {
+        statsUnsubscribeRef.current();
+        statsUnsubscribeRef.current = null;
+      }
+    };
+  }, []);
+
+  // Clean up previous subscription when modal closes
+  useEffect(() => {
+    if (!statsModalOpen && statsUnsubscribeRef.current) {
+      statsUnsubscribeRef.current();
+      statsUnsubscribeRef.current = null;
+    }
+  }, [statsModalOpen]);
 
   const deleteMutation = api.poll.delete.useMutation({
     onError: (error) => {
@@ -299,20 +311,39 @@ export default function PollsPage() {
     },
   });
 
-  const handleShowStats = async (pollId: string) => {
+  const handleShowStats = (pollId: string) => {
     try {
       setIsLoadingStats(true);
       setSelectedPollId(pollId);
 
-      // TRPC context를 통해 쿼리 실행
-      const data = await utils.poll.getParticipantStats.fetch({ pollId });
-      setPollStats(data || []);
-      setStatsModalOpen(true);
+      // Clean up any existing subscription first
+      if (statsUnsubscribeRef.current) {
+        statsUnsubscribeRef.current();
+        statsUnsubscribeRef.current = null;
+      }
+
+      // Set up real-time listener for the stats
+      const unsubscribe = subscribeToParticipantStats(
+        pollId,
+        (participantStats) => {
+          setPollStats(participantStats || []);
+          setIsLoadingStats(false);
+          setStatsModalOpen(true);
+        },
+        (error) => {
+          console.error("통계 조회 오류:", error);
+          setPollStats([]);
+          setIsLoadingStats(false);
+          setStatsModalOpen(true);
+        },
+      );
+
+      // Save the unsubscribe function for cleanup
+      statsUnsubscribeRef.current = unsubscribe;
     } catch (error) {
       console.error("통계 조회 오류:", error);
       setPollStats([]);
       setStatsModalOpen(true);
-    } finally {
       setIsLoadingStats(false);
     }
   };

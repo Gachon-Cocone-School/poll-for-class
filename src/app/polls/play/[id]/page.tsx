@@ -27,7 +27,7 @@ import { useGroupMembers } from "~/hooks/useGroups";
 import { QRCodeSVG } from "qrcode.react";
 import { env } from "~/env";
 import strings from "~/lib/strings";
-import { deleteDoc, doc } from "firebase/firestore";
+import { deleteDoc, doc, collection, getDocs } from "firebase/firestore";
 import { db } from "~/lib/firebase";
 
 const POLLS_COLLECTION = "polls";
@@ -317,6 +317,65 @@ export default function PollPlayPage() {
     [pollId, currentQuestion?.id, getAnswerIdForMember],
   );
 
+  // Function to delete all answers for the current question
+  const deleteAllAnswers = useCallback(async () => {
+    if (!currentQuestion?.id) return;
+
+    try {
+      // Show confirmation
+      if (
+        window.confirm(
+          strings.poll.deleteAllAnswersConfirm ||
+            "Delete all answers for this question?",
+        )
+      ) {
+        // Delete all answers in the collection
+        const answersRef = collection(
+          db,
+          POLLS_COLLECTION,
+          pollId,
+          QUESTIONS_COLLECTION,
+          currentQuestion.id,
+          ANSWERS_COLLECTION,
+        );
+
+        const answersSnapshot = await getDocs(answersRef);
+
+        // Delete answers one by one
+        const deletePromises = answersSnapshot.docs.map((doc) =>
+          deleteDoc(doc.ref),
+        );
+
+        await Promise.all(deletePromises);
+        console.log(`Deleted all answers for question ${currentQuestion.id}`);
+
+        // Recalculate results (same as when ending poll)
+        calculateResultsMutation.mutate(
+          {
+            pollId,
+            questionId: currentQuestion.id,
+          },
+          {
+            onSuccess: () => {
+              // Poll 결과 계산이 완료되면 참가자 통계 계산
+              calculateParticipantStatsMutation.mutate({
+                pollId,
+              });
+            },
+          },
+        );
+      }
+    } catch (error) {
+      console.error("Error deleting all answers:", error);
+      alert(strings.poll.deleteAllAnswersError || "Failed to delete answers");
+    }
+  }, [
+    pollId,
+    currentQuestion?.id,
+    calculateResultsMutation,
+    calculateParticipantStatsMutation,
+  ]);
+
   // 로딩 상태 확인
   const isLoading = pollLoading || questionsLoading;
 
@@ -531,9 +590,21 @@ export default function PollPlayPage() {
 
           {/* Right Panel - Members - Full height */}
           <div className="flex h-full flex-col rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="mb-2 text-lg font-semibold">
-              {strings.group.members} ({sortedMembers.length})
-            </h2>
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">
+                {strings.group.members} ({questionAnswers.length}/
+                {sortedMembers.length})
+              </h2>
+              {!isPollActive && questionAnswers.length > 0 && (
+                <button
+                  onClick={deleteAllAnswers}
+                  title={strings.poll.deleteAllAnswers}
+                  className="flex items-center rounded-md bg-red-100 px-3 py-1 text-sm text-red-600 hover:bg-red-200"
+                >
+                  <TrashIcon className="h-4 w-4" />
+                </button>
+              )}
+            </div>
 
             <div className="grid grid-cols-3 gap-x-1 gap-y-0.5 overflow-y-auto sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
               {sortedMembers.length > 0 ? (
