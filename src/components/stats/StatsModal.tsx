@@ -130,7 +130,7 @@ const StatsModal: React.FC<StatsModalProps> = ({
                   {stats.length >= 2 && (
                     <div className="mx-4 flex flex-col items-center">
                       <div className="mb-2 flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-4 border-gray-300 bg-gray-100">
-                        <span className="text-3xl font-bold text-gray-600">
+                        <span className="text-2xl font-bold text-gray-600">
                           {top3[1]?.rank}
                         </span>
                       </div>
@@ -155,8 +155,8 @@ const StatsModal: React.FC<StatsModalProps> = ({
                   {/* First Place - Center */}
                   {stats.length >= 1 && (
                     <div className="mx-4 -mt-6 flex flex-col items-center">
-                      <div className="mb-2 flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-yellow-500 bg-yellow-100">
-                        <span className="text-4xl font-bold text-yellow-600">
+                      <div className="mb-2 flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-4 border-yellow-500 bg-yellow-100">
+                        <span className="text-2xl font-bold text-yellow-600">
                           {top3[0]?.rank}
                         </span>
                       </div>
@@ -181,7 +181,7 @@ const StatsModal: React.FC<StatsModalProps> = ({
                   {/* Third Place - Right */}
                   {stats.length >= 3 && (
                     <div className="mx-4 flex flex-col items-center">
-                      <div className="mb-2 flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-4 border-amber-700 bg-amber-100">
+                      <div className="mb-2 flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-4 border-amber-700 bg-amber-100">
                         <span className="text-2xl font-bold text-amber-800">
                           {top3[2]?.rank}
                         </span>

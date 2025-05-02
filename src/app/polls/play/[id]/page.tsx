@@ -665,15 +665,6 @@ export default function PollPlayPage() {
               </h2>
               {!isPollActive && (
                 <div className="flex space-x-2">
-                  {questionAnswers.length > 0 && (
-                    <button
-                      onClick={deleteAllAnswers}
-                      title={strings.poll.deleteAllAnswers}
-                      className="flex items-center rounded-md bg-red-100 px-3 py-1 text-sm text-red-600 hover:bg-red-200"
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                    </button>
-                  )}
                   <button
                     onClick={handleShowStats}
                     title={strings.stats.title}
@@ -686,6 +677,15 @@ export default function PollPlayPage() {
                       <ChartBarIcon className="h-4 w-4" />
                     )}
                   </button>
+                  {questionAnswers.length > 0 && (
+                    <button
+                      onClick={deleteAllAnswers}
+                      title={strings.poll.deleteAllAnswers}
+                      className="flex items-center rounded-md bg-red-100 px-3 py-1 text-sm text-red-600 hover:bg-red-200"
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               )}
             </div>
