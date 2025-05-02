@@ -7,6 +7,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   TrashIcon,
+  ChartBarIcon,
 } from "@heroicons/react/24/outline";
 import Layout from "~/components/Layout";
 import { api } from "~/trpc/react";
@@ -29,6 +30,8 @@ import { env } from "~/env";
 import strings from "~/lib/strings";
 import { deleteDoc, doc, collection, getDocs } from "firebase/firestore";
 import { db } from "~/lib/firebase";
+import { subscribeToParticipantStats } from "~/lib/pollService";
+import StatsModal from "~/components/stats/StatsModal";
 
 const POLLS_COLLECTION = "polls";
 const QUESTIONS_COLLECTION = "questions";
@@ -47,6 +50,12 @@ export default function PollPlayPage() {
   const [deletingMemberId, setDeletingMemberId] = useState<string | null>(null);
   const [isStartingPoll, setIsStartingPoll] = useState(false);
   const [isEndingPoll, setIsEndingPoll] = useState(false);
+  // Add stats modal states
+  const [statsModalOpen, setStatsModalOpen] = useState(false);
+  const [pollStats, setPollStats] = useState<ParticipantStats[]>([]);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+  // Add ref to track stats subscription
+  const statsUnsubscribeRef = useRef<(() => void) | null>(null);
 
   // Use real-time hooks for data fetching
   const { data: poll, loading: pollLoading } = usePoll(pollId);
@@ -119,6 +128,24 @@ export default function PollPlayPage() {
     );
     setSortedMembers(sorted);
   }, [members]);
+
+  // Clean up stats subscription when component unmounts
+  useEffect(() => {
+    return () => {
+      if (statsUnsubscribeRef.current) {
+        statsUnsubscribeRef.current();
+        statsUnsubscribeRef.current = null;
+      }
+    };
+  }, []);
+
+  // Clean up previous subscription when modal closes
+  useEffect(() => {
+    if (!statsModalOpen && statsUnsubscribeRef.current) {
+      statsUnsubscribeRef.current();
+      statsUnsubscribeRef.current = null;
+    }
+  }, [statsModalOpen]);
 
   // Poll 시작/종료 핸들러
   const handlePollStart = useCallback(() => {
@@ -193,6 +220,47 @@ export default function PollPlayPage() {
       setCurrentQuestionIndex(currentQuestionIndex - 1);
     }
   }, [currentQuestionIndex]);
+
+  // Handle showing the leaderboard modal
+  const handleShowStats = useCallback(() => {
+    try {
+      setIsLoadingStats(true);
+
+      // Clean up any existing subscription first
+      if (statsUnsubscribeRef.current) {
+        statsUnsubscribeRef.current();
+        statsUnsubscribeRef.current = null;
+      }
+
+      // Set up real-time listener for the stats
+      const unsubscribe = subscribeToParticipantStats(
+        pollId,
+        (participantStats) => {
+          setPollStats(participantStats || []);
+          setIsLoadingStats(false);
+          setStatsModalOpen(true);
+        },
+        (error) => {
+          console.error("통계 조회 오류:", error);
+          setPollStats([]);
+          setIsLoadingStats(false);
+          setStatsModalOpen(true);
+        },
+      );
+
+      // Save the unsubscribe function for cleanup
+      statsUnsubscribeRef.current = unsubscribe;
+    } catch (error) {
+      console.error("통계 조회 오류:", error);
+      setPollStats([]);
+      setStatsModalOpen(true);
+      setIsLoadingStats(false);
+    }
+  }, [pollId]);
+
+  const handleCloseStatsModal = () => {
+    setStatsModalOpen(false);
+  };
 
   // Helper function to check if a member has answered
   const checkIfMemberHasAnswered = useCallback(
@@ -595,14 +663,30 @@ export default function PollPlayPage() {
                 {strings.group.members} ({questionAnswers.length}/
                 {sortedMembers.length})
               </h2>
-              {!isPollActive && questionAnswers.length > 0 && (
-                <button
-                  onClick={deleteAllAnswers}
-                  title={strings.poll.deleteAllAnswers}
-                  className="flex items-center rounded-md bg-red-100 px-3 py-1 text-sm text-red-600 hover:bg-red-200"
-                >
-                  <TrashIcon className="h-4 w-4" />
-                </button>
+              {!isPollActive && (
+                <div className="flex space-x-2">
+                  {questionAnswers.length > 0 && (
+                    <button
+                      onClick={deleteAllAnswers}
+                      title={strings.poll.deleteAllAnswers}
+                      className="flex items-center rounded-md bg-red-100 px-3 py-1 text-sm text-red-600 hover:bg-red-200"
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </button>
+                  )}
+                  <button
+                    onClick={handleShowStats}
+                    title={strings.stats.title}
+                    className="flex items-center rounded-md bg-indigo-100 px-3 py-1 text-sm text-indigo-600 hover:bg-indigo-200"
+                    disabled={isLoadingStats}
+                  >
+                    {isLoadingStats ? (
+                      <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-indigo-600"></div>
+                    ) : (
+                      <ChartBarIcon className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
               )}
             </div>
 
@@ -667,6 +751,15 @@ export default function PollPlayPage() {
           </div>
         </div>
       )}
+
+      {/* Stats Modal */}
+      <StatsModal
+        isOpen={statsModalOpen}
+        onClose={handleCloseStatsModal}
+        stats={pollStats}
+        pollName={poll?.poll_name || ""}
+        isLoading={isLoadingStats}
+      />
     </Layout>
   );
 }
