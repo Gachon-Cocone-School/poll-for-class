@@ -293,10 +293,13 @@ export const getPollQuestions = async (pollId: string): Promise<Question[]> => {
   );
   const questionSnapshot = await getDocs(questionsCol);
 
-  return questionSnapshot.docs.map((doc) => ({
+  const questions = questionSnapshot.docs.map((doc) => ({
     id: doc.id,
     ...(doc.data() as Omit<Question, "id">),
   }));
+
+  // Sort questions by index
+  return questions.sort((a, b) => (a.index || 0) - (b.index || 0));
 };
 
 // Subscribe to poll questions with real-time updates
@@ -321,7 +324,11 @@ export const subscribeToPollQuestions = (
           ...(doc.data() as Omit<Question, "id">),
         }));
 
-        onData(questions);
+        // Sort questions by index before returning them
+        const sortedQuestions = questions.sort(
+          (a, b) => (a.index || 0) - (b.index || 0),
+        );
+        onData(sortedQuestions);
       } catch (error) {
         console.error("Error in questions subscription:", error);
         if (onError) onError(error as Error);
@@ -337,7 +344,7 @@ export const subscribeToPollQuestions = (
 // Create a new question for a poll
 export const createQuestion = async (
   pollId: string,
-  question: Omit<Question, "id">,
+  question: Omit<Question, "id" | "index">,
 ): Promise<string> => {
   const questionsCol = collection(
     db,
@@ -345,7 +352,25 @@ export const createQuestion = async (
     pollId,
     QUESTIONS_COLLECTION,
   );
-  const docRef = await addDoc(questionsCol, question);
+
+  // Get all existing questions to determine the next index
+  const questionSnapshot = await getDocs(questionsCol);
+  const questions = questionSnapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...(doc.data() as Omit<Question, "id">),
+  }));
+
+  // Find the maximum index or default to 0
+  const maxIndex =
+    questions.length > 0 ? Math.max(...questions.map((q) => q.index || 0)) : 0;
+
+  // Create the new question with an index one higher than the current maximum
+  const questionWithIndex = {
+    ...question,
+    index: maxIndex + 1, // Start from 1 if there are no questions yet
+  };
+
+  const docRef = await addDoc(questionsCol, questionWithIndex);
   return docRef.id;
 };
 
@@ -999,4 +1024,79 @@ export const subscribeToParticipantStats = (
       if (onError) onError(error);
     },
   );
+};
+
+// Move a question up in the order (decrease its index)
+export const moveQuestionUp = async (
+  pollId: string,
+  questionId: string,
+): Promise<boolean> => {
+  try {
+    // Get the question to move up
+    const question = await getQuestionById(pollId, questionId);
+    if (!question || !question.id) return false;
+
+    // If already at top (index 1), don't move
+    if (question.index <= 1) return false;
+
+    // Get all poll questions to find the one above it
+    const allQuestions = await getPollQuestions(pollId);
+
+    // Find the question with the index one less than the current question
+    const previousQuestion = allQuestions.find(
+      (q) => q.index === question.index - 1,
+    );
+
+    if (!previousQuestion || !previousQuestion.id) return false;
+
+    // Swap indexes between the two questions
+    await updateQuestion(pollId, question.id, { index: question.index - 1 });
+    await updateQuestion(pollId, previousQuestion.id, {
+      index: previousQuestion.index + 1,
+    });
+
+    return true;
+  } catch (error) {
+    console.error("Error moving question up:", error);
+    return false;
+  }
+};
+
+// Move a question down in the order (increase its index)
+export const moveQuestionDown = async (
+  pollId: string,
+  questionId: string,
+): Promise<boolean> => {
+  try {
+    // Get the question to move down
+    const question = await getQuestionById(pollId, questionId);
+    if (!question || !question.id) return false;
+
+    // Get all poll questions to find the one below it
+    const allQuestions = await getPollQuestions(pollId);
+
+    // Find max index
+    const maxIndex = Math.max(...allQuestions.map((q) => q.index));
+
+    // If already at bottom, don't move
+    if (question.index >= maxIndex) return false;
+
+    // Find the question with the index one more than the current question
+    const nextQuestion = allQuestions.find(
+      (q) => q.index === question.index + 1,
+    );
+
+    if (!nextQuestion || !nextQuestion.id) return false;
+
+    // Swap indexes between the two questions
+    await updateQuestion(pollId, question.id, { index: question.index + 1 });
+    await updateQuestion(pollId, nextQuestion.id, {
+      index: nextQuestion.index - 1,
+    });
+
+    return true;
+  } catch (error) {
+    console.error("Error moving question down:", error);
+    return false;
+  }
 };

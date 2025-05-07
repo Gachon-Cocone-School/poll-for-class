@@ -105,8 +105,9 @@ export default function PollPlayPage() {
   useEffect(() => {
     if (!questions || questions.length === 0) return;
 
-    const sorted = [...questions].sort((a, b) =>
-      a.question.localeCompare(b.question),
+    // Sort questions by index instead of alphabetically
+    const sorted = [...questions].sort(
+      (a, b) => (a.index || 0) - (b.index || 0),
     );
     setSortedQuestions(sorted);
 

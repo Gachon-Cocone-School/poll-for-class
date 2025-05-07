@@ -128,6 +128,8 @@ export const strings = {
     submissionFailed: "제출에 실패했습니다. 다시 시도해 주세요.",
     question: "질문",
     choice: "선택지",
+    moveUp: "위로",
+    moveDown: "아래로",
   },
 
   stats: {

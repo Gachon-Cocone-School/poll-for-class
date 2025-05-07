@@ -4,7 +4,12 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Layout from "~/components/Layout";
 import { api } from "~/trpc/react";
-import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
+import {
+  PlusIcon,
+  TrashIcon,
+  ArrowUpIcon,
+  ArrowDownIcon,
+} from "@heroicons/react/24/outline";
 import { usePoll, usePollQuestions } from "~/hooks/usePolls";
 import { useGroups } from "~/hooks/useGroups";
 import strings, { formatString } from "~/lib/strings";
@@ -20,7 +25,7 @@ export default function EditPollPage() {
     poll_group_id: "",
   });
   const [questions, setQuestions] = useState<
-    Array<{ id?: string; question: string; choices: string[] }>
+    Array<{ id?: string; question: string; choices: string[]; index?: number }>
   >([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formInitialized, setFormInitialized] = useState(false);
@@ -35,6 +40,9 @@ export default function EditPollPage() {
     usePollQuestions(id);
 
   const { data: groups, loading: isGroupsLoading } = useGroups();
+
+  // Define mutations for moving questions up and down
+  const updateQuestion = api.poll.updateQuestion.useMutation();
 
   // 디버그 로그 추가
   useEffect(() => {
@@ -98,7 +106,6 @@ export default function EditPollPage() {
 
   const updatePoll = api.poll.update.useMutation();
   const addQuestion = api.poll.addQuestion.useMutation();
-  const updateQuestion = api.poll.updateQuestion.useMutation();
   const deleteQuestion = api.poll.deleteQuestion.useMutation();
 
   const handleChange = (
@@ -247,6 +254,30 @@ export default function EditPollPage() {
     setQuestions(updatedQuestions);
   };
 
+  // Move a question up (swap with the previous question)
+  const moveQuestionUp = (index: number) => {
+    if (index <= 0) return;
+
+    const updatedQuestions = [...questions];
+    const temp = updatedQuestions[index - 1];
+    updatedQuestions[index - 1] = updatedQuestions[index];
+    updatedQuestions[index] = temp;
+
+    setQuestions(updatedQuestions);
+  };
+
+  // Move a question down (swap with the next question)
+  const moveQuestionDown = (index: number) => {
+    if (index >= questions.length - 1) return;
+
+    const updatedQuestions = [...questions];
+    const temp = updatedQuestions[index + 1];
+    updatedQuestions[index + 1] = updatedQuestions[index];
+    updatedQuestions[index] = temp;
+
+    setQuestions(updatedQuestions);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -258,38 +289,57 @@ export default function EditPollPage() {
         ...formData,
       });
 
-      // Handle questions
-      for (const question of questions) {
+      // Process all questions sequentially in a more reliable way
+      const validQuestions = questions.filter((question) => {
+        const filteredChoices = question.choices.filter(
+          (choice) => choice.trim() !== "",
+        );
+        return question.question.trim() !== "" && filteredChoices.length >= 2;
+      });
+
+      console.log(
+        `Saving ${validQuestions.length} valid questions with indexes`,
+      );
+
+      // Process questions one by one in sequence
+      for (let i = 0; i < validQuestions.length; i++) {
+        const question = validQuestions[i];
         const filteredChoices = question.choices.filter(
           (choice) => choice.trim() !== "",
         );
 
-        // Skip invalid questions
-        if (question.question.trim() === "" || filteredChoices.length < 2) {
-          continue;
-        }
+        // Set index based on array position (add 1 to start from 1)
+        const index = i + 1;
 
-        // Update existing question
-        if (question.id) {
-          await updateQuestion.mutateAsync({
-            pollId: id,
-            questionId: question.id,
-            question: {
-              id: question.id,
-              question: question.question,
-              choices: filteredChoices,
-            },
-          });
-        }
-        // Add new question
-        else {
-          await addQuestion.mutateAsync({
-            pollId: id,
-            question: {
-              question: question.question,
-              choices: filteredChoices,
-            },
-          });
+        try {
+          if (question.id) {
+            // Update existing question
+            console.log(`Updating question ${question.id} with index ${index}`);
+            await updateQuestion.mutateAsync({
+              pollId: id,
+              questionId: question.id,
+              question: {
+                id: question.id,
+                question: question.question,
+                choices: filteredChoices,
+                index, // Set the updated index
+              },
+            });
+          } else {
+            // Add new question
+            console.log(`Adding new question with index ${index}`);
+            await addQuestion.mutateAsync({
+              pollId: id,
+              question: {
+                question: question.question,
+                choices: filteredChoices,
+                index, // Set the index for new questions
+              },
+            });
+          }
+        } catch (error) {
+          console.error(`Error processing question at index ${i}:`, error);
+          throw error; // Rethrow to be caught by the outer catch
         }
       }
 
@@ -411,10 +461,10 @@ export default function EditPollPage() {
               <button
                 type="button"
                 onClick={addQuestionField}
-                className="flex items-center rounded bg-green-100 px-3 py-1 text-sm text-green-700 hover:bg-green-200"
+                className="flex items-center rounded bg-green-100 px-3 py-1 text-green-700 hover:bg-green-200"
+                title={strings.question.addQuestion}
               >
-                <PlusIcon className="mr-1 h-4 w-4" />
-                {strings.question.addQuestion}
+                <PlusIcon className="h-5 w-5" />
               </button>
             </div>
 
@@ -427,14 +477,36 @@ export default function EditPollPage() {
                   <h4 className="mb-2 text-sm font-medium text-gray-500">
                     {strings.question.question} #{qIndex + 1}
                   </h4>
-                  <button
-                    type="button"
-                    onClick={() => removeQuestionField(qIndex)}
-                    className="flex items-center rounded bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200"
-                  >
-                    <TrashIcon className="mr-1 h-3 w-3" />
-                    {strings.question.removeQuestion}
-                  </button>
+                  <div className="flex space-x-2">
+                    {qIndex > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => moveQuestionUp(qIndex)}
+                        className="flex items-center rounded bg-blue-100 px-2 py-1 text-blue-700 hover:bg-blue-200"
+                        title={strings.question.moveUp}
+                      >
+                        <ArrowUpIcon className="h-4 w-4" />
+                      </button>
+                    )}
+                    {qIndex < questions.length - 1 && (
+                      <button
+                        type="button"
+                        onClick={() => moveQuestionDown(qIndex)}
+                        className="flex items-center rounded bg-blue-100 px-2 py-1 text-blue-700 hover:bg-blue-200"
+                        title={strings.question.moveDown}
+                      >
+                        <ArrowDownIcon className="h-4 w-4" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeQuestionField(qIndex)}
+                      className="flex items-center rounded bg-red-100 px-2 py-1 text-red-700 hover:bg-red-200"
+                      title={strings.question.removeQuestion}
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="mb-3">
@@ -463,10 +535,10 @@ export default function EditPollPage() {
                     <button
                       type="button"
                       onClick={() => addChoiceField(qIndex)}
-                      className="flex items-center rounded bg-blue-100 px-2 py-1 text-xs text-blue-700 hover:bg-blue-200"
+                      className="flex items-center rounded bg-blue-100 px-2 py-1 text-blue-700 hover:bg-blue-200"
+                      title={strings.question.addChoice}
                     >
-                      <PlusIcon className="mr-1 h-3 w-3" />
-                      {strings.question.addChoice}
+                      <PlusIcon className="h-4 w-4" />
                     </button>
                   </div>
 

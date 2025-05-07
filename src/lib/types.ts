@@ -48,6 +48,7 @@ export interface Question {
   question: string;
   choices: string[];
   poll_result?: QuestionResult | null;
+  index: number; // Adding index field for question ordering
 }
 
 export interface Answer {

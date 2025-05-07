@@ -21,12 +21,14 @@ const updatePollSchema = z.object({
 const questionSchema = z.object({
   question: z.string().min(1),
   choices: z.array(z.string().min(1)),
+  index: z.number().optional(), // 추가: index 필드도 가능하게 함
 });
 
 const updateQuestionSchema = z.object({
   id: z.string(),
   question: z.string().min(1).optional(),
   choices: z.array(z.string().min(1)).optional(),
+  index: z.number().optional(), // 추가: index 필드 허용
 });
 
 export const pollRouter = createTRPCRouter({
@@ -127,6 +129,36 @@ export const pollRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       await pollService.deleteQuestion(input.pollId, input.questionId);
       return { success: true };
+    }),
+
+  moveQuestionUp: publicProcedure
+    .input(
+      z.object({
+        pollId: z.string(),
+        questionId: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const success = await pollService.moveQuestionUp(
+        input.pollId,
+        input.questionId,
+      );
+      return { success };
+    }),
+
+  moveQuestionDown: publicProcedure
+    .input(
+      z.object({
+        pollId: z.string(),
+        questionId: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const success = await pollService.moveQuestionDown(
+        input.pollId,
+        input.questionId,
+      );
+      return { success };
     }),
 
   updateActiveQuestion: publicProcedure
