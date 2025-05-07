@@ -259,11 +259,15 @@ export default function EditPollPage() {
     if (index <= 0) return;
 
     const updatedQuestions = [...questions];
-    const temp = updatedQuestions[index - 1];
-    updatedQuestions[index - 1] = updatedQuestions[index];
-    updatedQuestions[index] = temp;
+    // Add null checks and type assertions to ensure TypeScript understands these values exist
+    const prevQuestion = updatedQuestions[index - 1];
+    const currentQuestion = updatedQuestions[index];
 
-    setQuestions(updatedQuestions);
+    if (prevQuestion && currentQuestion) {
+      updatedQuestions[index - 1] = currentQuestion;
+      updatedQuestions[index] = prevQuestion;
+      setQuestions(updatedQuestions);
+    }
   };
 
   // Move a question down (swap with the next question)
@@ -271,11 +275,15 @@ export default function EditPollPage() {
     if (index >= questions.length - 1) return;
 
     const updatedQuestions = [...questions];
-    const temp = updatedQuestions[index + 1];
-    updatedQuestions[index + 1] = updatedQuestions[index];
-    updatedQuestions[index] = temp;
+    // Add null checks and type assertions to ensure TypeScript understands these values exist
+    const nextQuestion = updatedQuestions[index + 1];
+    const currentQuestion = updatedQuestions[index];
 
-    setQuestions(updatedQuestions);
+    if (nextQuestion && currentQuestion) {
+      updatedQuestions[index + 1] = currentQuestion;
+      updatedQuestions[index] = nextQuestion;
+      setQuestions(updatedQuestions);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -304,6 +312,9 @@ export default function EditPollPage() {
       // Process questions one by one in sequence
       for (let i = 0; i < validQuestions.length; i++) {
         const question = validQuestions[i];
+        // Add null check to ensure question is defined
+        if (!question) continue;
+
         const filteredChoices = question.choices.filter(
           (choice) => choice.trim() !== "",
         );
