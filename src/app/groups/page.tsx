@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Layout from "~/components/Layout";
@@ -22,7 +22,15 @@ export default function GroupsPage() {
   const [loadingEditId, setLoadingEditId] = useState<string | null>(null);
 
   // 실시간 Firebase 구독 사용
-  const { data: groups, loading: isLoading } = useGroups();
+  const { data: groupsData, loading: isLoading } = useGroups();
+
+  // 그룹 이름으로 정렬
+  const groups = useMemo(() => {
+    if (!groupsData) return [];
+    return [...groupsData].sort((a, b) =>
+      a.group_name.localeCompare(b.group_name, "ko"),
+    );
+  }, [groupsData]);
 
   const deleteMutation = api.group.delete.useMutation({
     onError: (error) => {
@@ -32,11 +40,12 @@ export default function GroupsPage() {
     },
   });
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     if (confirm(strings.group.deleteConfirm)) {
       setDeleteId(id);
-      await deleteMutation.mutateAsync({ id });
-      setDeleteId(null);
+      void deleteMutation.mutateAsync({ id }).then(() => {
+        setDeleteId(null);
+      });
     }
   };
 
