@@ -12,6 +12,7 @@ import {
   PlayIcon,
   ArrowLeftOnRectangleIcon,
   ChartBarIcon,
+  DocumentTextIcon,
 } from "@heroicons/react/24/outline";
 import { usePolls } from "~/hooks/usePolls"; // 실시간 구독 훅 사용
 import { useAdminAuth } from "~/hooks/useAdminAuth"; // Admin auth hook 추가
@@ -19,15 +20,18 @@ import type { ParticipantStats } from "~/lib/types";
 import strings, { formatString } from "~/lib/strings";
 import { subscribeToParticipantStats } from "~/lib/pollService"; // 올바른 경로에서 import
 import StatsModal from "~/components/stats/StatsModal";
+import CsvExportModal from "~/components/stats/CsvExportModal";
 
 export default function PollsPage() {
   const router = useRouter();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const { logout, isAuthenticated } = useAdminAuth();
   const [statsModalOpen, setStatsModalOpen] = useState(false);
+  const [csvModalOpen, setCsvModalOpen] = useState(false);
   const [selectedPollId, setSelectedPollId] = useState<string | null>(null);
   const [pollStats, setPollStats] = useState<ParticipantStats[]>([]);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const [isLoadingCsv, setIsLoadingCsv] = useState(false);
   const [loadingPlayId, setLoadingPlayId] = useState<string | null>(null);
   const [loadingEditId, setLoadingEditId] = useState<string | null>(null);
 
@@ -52,11 +56,11 @@ export default function PollsPage() {
 
   // Clean up previous subscription when modal closes
   useEffect(() => {
-    if (!statsModalOpen && statsUnsubscribeRef.current) {
+    if (!statsModalOpen && !csvModalOpen && statsUnsubscribeRef.current) {
       statsUnsubscribeRef.current();
       statsUnsubscribeRef.current = null;
     }
-  }, [statsModalOpen]);
+  }, [statsModalOpen, csvModalOpen]);
 
   const deleteMutation = api.poll.delete.useMutation({
     onError: (error) => {
@@ -108,6 +112,48 @@ export default function PollsPage() {
     setSelectedPollId(null);
   };
 
+  const handleCloseCsvModal = () => {
+    setCsvModalOpen(false);
+    setSelectedPollId(null);
+  };
+
+  const handleShowCsv = (pollId: string) => {
+    try {
+      setIsLoadingCsv(true);
+      setSelectedPollId(pollId);
+
+      // Clean up any existing subscription first
+      if (statsUnsubscribeRef.current) {
+        statsUnsubscribeRef.current();
+        statsUnsubscribeRef.current = null;
+      }
+
+      // Set up real-time listener for the stats
+      const unsubscribe = subscribeToParticipantStats(
+        pollId,
+        (participantStats) => {
+          setPollStats(participantStats || []);
+          setIsLoadingCsv(false);
+          setCsvModalOpen(true);
+        },
+        (error) => {
+          console.error("CSV 통계 조회 오류:", error);
+          setPollStats([]);
+          setIsLoadingCsv(false);
+          setCsvModalOpen(true);
+        },
+      );
+
+      // Save the unsubscribe function for cleanup
+      statsUnsubscribeRef.current = unsubscribe;
+    } catch (error) {
+      console.error("CSV 통계 조회 오류:", error);
+      setPollStats([]);
+      setCsvModalOpen(true);
+      setIsLoadingCsv(false);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (confirm(strings.poll.deleteConfirm)) {
       try {
@@ -132,6 +178,39 @@ export default function PollsPage() {
 
   // Find the selected poll name
   const selectedPoll = polls?.find((poll) => poll.id === selectedPollId);
+
+  // Sort polls by group name first, then by poll_name in alphabetical order
+  const sortedPolls = polls
+    ? [...polls].sort((a, b) => {
+        // Get group names (or fallback to ID or unnamed)
+        const groupNameA =
+          typeof a.poll_group === "object" &&
+          a.poll_group !== null &&
+          "group_name" in a.poll_group
+            ? a.poll_group.group_name
+            : a.poll_group?.id || strings.common.unnamed;
+
+        const groupNameB =
+          typeof b.poll_group === "object" &&
+          b.poll_group !== null &&
+          "group_name" in b.poll_group
+            ? b.poll_group.group_name
+            : b.poll_group?.id || strings.common.unnamed;
+
+        // Compare group names first
+        const groupComparison = String(groupNameA).localeCompare(
+          String(groupNameB),
+        );
+
+        // If in the same group, compare by poll_name
+        if (groupComparison === 0) {
+          return a.poll_name.localeCompare(b.poll_name);
+        }
+
+        // Otherwise, sort by group name
+        return groupComparison;
+      })
+    : [];
 
   return (
     <Layout>
@@ -199,7 +278,7 @@ export default function PollsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white">
-              {polls.map((poll) => (
+              {sortedPolls.map((poll) => (
                 <tr key={poll.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
@@ -249,6 +328,18 @@ export default function PollsPage() {
                           <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-indigo-600"></div>
                         ) : (
                           <ChartBarIcon className="h-5 w-5" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleShowCsv(poll.id!)}
+                        className="rounded bg-teal-100 p-1 text-teal-600 hover:bg-teal-200"
+                        disabled={deleteId === poll.id || isLoadingCsv}
+                        title="CSV 내보내기"
+                      >
+                        {isLoadingCsv && selectedPollId === poll.id ? (
+                          <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-teal-600"></div>
+                        ) : (
+                          <DocumentTextIcon className="h-5 w-5" />
                         )}
                       </button>
                       <button
@@ -302,6 +393,14 @@ export default function PollsPage() {
       <StatsModal
         isOpen={statsModalOpen}
         onClose={handleCloseStatsModal}
+        stats={pollStats}
+        pollName={selectedPoll?.poll_name || ""}
+      />
+
+      {/* CSV Export Modal */}
+      <CsvExportModal
+        isOpen={csvModalOpen}
+        onClose={handleCloseCsvModal}
         stats={pollStats}
         pollName={selectedPoll?.poll_name || ""}
       />
